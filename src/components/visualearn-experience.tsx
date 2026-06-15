@@ -331,6 +331,24 @@ const studioModes = [
   }
 ];
 
+const studioSequences: Record<string, { label: string; detail: string }[]> = {
+  whiteboard: [
+    { label: "Sketch primitive", detail: "Draw the visible object before naming it." },
+    { label: "Animate relation", detail: "Trace the hidden cause and effect." },
+    { label: "Label trap", detail: "Mark the tempting wrong mental shortcut." }
+  ],
+  voice: [
+    { label: "Prime", detail: "Set pace, vocabulary, and cognitive load." },
+    { label: "Narrate", detail: "Talk through the model as it moves." },
+    { label: "Predict", detail: "Pause before the reveal so the learner commits." }
+  ],
+  battle: [
+    { label: "Challenge", detail: "Serve a transfer question under pressure." },
+    { label: "Race", detail: "Compare learner confidence with AI pace." },
+    { label: "Review", detail: "Turn misses into Smart Memory signals." }
+  ]
+};
+
 const playableDemos = [
   {
     id: "derivative",
@@ -847,6 +865,7 @@ export function VisualearnExperience() {
   const [activeDemo, setActiveDemo] = useState(playableDemos[0].id);
   const [demoIntensity, setDemoIntensity] = useState(58);
   const [activeStudio, setActiveStudio] = useState(studioModes[0].id);
+  const [studioStep, setStudioStep] = useState(0);
   const [voiceActive, setVoiceActive] = useState(false);
   const [battleRound, setBattleRound] = useState(1);
   const [graphZoom, setGraphZoom] = useState(1);
@@ -915,6 +934,13 @@ export function VisualearnExperience() {
     return () => window.clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    setStudioStep(0);
+    if (activeStudio !== "voice") {
+      setVoiceActive(false);
+    }
+  }, [activeStudio]);
+
   const selectedSubject = useMemo(
     () => subjects.find((subject) => subject.name === lesson?.subject) ?? subjects[0],
     [lesson]
@@ -960,6 +986,8 @@ export function VisualearnExperience() {
   const activeUniverseNode =
     universeNodes.find((node) => node.id === activeGraphNode) ?? universeNodes.find((node) => node.id === "mastery") ?? universeNodes[0];
   const selectedStudio = studioModes.find((mode) => mode.id === activeStudio) ?? studioModes[0];
+  const selectedStudioSequence = studioSequences[selectedStudio.id] ?? studioSequences.whiteboard;
+  const activeStudioStep = selectedStudioSequence[studioStep % selectedStudioSequence.length];
   const briefItems =
     activeBriefTab === "primitives"
       ? lesson?.visualPrimitives
@@ -986,6 +1014,19 @@ export function VisualearnExperience() {
         : signal > curvature
           ? "Signal-led response: change appears before the boundary catches up."
           : "Constraint-led response: structure shapes the visible movement first.";
+  const quizPressure = Math.min(
+    98,
+    46 + activeCheckpoint * 9 + completedCheckpoints.length * 7 + (selectedQuizOption ? 16 : 0) - (hintRevealed ? 8 : 0)
+  );
+  const quizAccuracy = selectedOption ? (selectedOption.correct ? 94 : 42) : Math.min(86, 56 + completedCheckpoints.length * 8);
+  const quizTempo = Math.max(24, 78 - activeCheckpoint * 6 - (hintRevealed ? 10 : 0) + (selectedOption?.correct ? 8 : 0));
+  const quizStateLabel = selectedOption ? (selectedOption.correct ? "Verified" : "Repair loop") : "Awaiting prediction";
+  const quizTrace =
+    selectedOption?.correct
+      ? ["Model updated", "Memory reinforced", "Checkpoint pressure reduced"]
+      : selectedOption
+        ? ["Misconception isolated", "Hint recommended", "Memory queue updated"]
+        : ["Read the system", "Choose the first response", "Explain the hidden cause"];
 
   const startLesson = (nextTopic: string) => {
     const normalizedTopic = nextTopic.trim();
@@ -2014,24 +2055,83 @@ export function VisualearnExperience() {
               ))}
             </div>
             <div className={`studio-canvas studio-${selectedStudio.id}`} aria-label={`${selectedStudio.title} preview`}>
-              <div className="whiteboard-lines" aria-hidden="true">
-                <span />
-                <span />
-                <span />
-              </div>
-              <div className="studio-node studio-node-a">{lesson?.subject}</div>
-              <div className="studio-node studio-node-b">{activeLayer}</div>
-              <div className="studio-node studio-node-c">{lesson?.topic}</div>
-              <svg viewBox="0 0 100 100" aria-hidden="true">
-                <path d="M 16 68 C 28 30, 52 28, 64 55 S 80 78, 90 32" />
-                <circle cx="64" cy="55" r="3" />
-              </svg>
-              <div className="voice-wave" aria-hidden="true">
-                <span />
-                <span />
-                <span />
-                <span />
-              </div>
+              {selectedStudio.id === "whiteboard" ? (
+                <div className="whiteboard-board">
+                  <div className="whiteboard-lines" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <svg className="whiteboard-sketch" viewBox="0 0 100 100" aria-hidden="true">
+                    <path d="M 12 70 C 24 38, 42 28, 55 48 S 76 78, 91 26" />
+                    <path className="whiteboard-secondary" d="M 18 72 L 82 22" />
+                    <circle cx="55" cy="48" r="3" />
+                  </svg>
+                  <div className="studio-node studio-node-a">{lesson?.subject}</div>
+                  <div className="studio-node studio-node-b">{activeStudioStep.label}</div>
+                  <div className="studio-node studio-node-c">{lesson?.topic}</div>
+                  <div className="whiteboard-caption">
+                    <span>Stroke {studioStep + 1}</span>
+                    <p>{activeStudioStep.detail}</p>
+                  </div>
+                </div>
+              ) : null}
+
+              {selectedStudio.id === "voice" ? (
+                <div className="voice-stage">
+                  <div className={`voice-ring ${voiceActive ? "live" : ""}`} aria-hidden="true">
+                    <span />
+                    <span />
+                    <strong>{voiceActive ? "Live" : "Ready"}</strong>
+                  </div>
+                  <div className="voice-transcript">
+                    <span>Voice walkthrough</span>
+                    <h4>{activeStudioStep.label}</h4>
+                    <p>
+                      {voiceActive
+                        ? `Now watch ${lesson?.topic ?? "the model"} shift as ${activeLayer.toLowerCase()} cues appear.`
+                        : activeStudioStep.detail}
+                    </p>
+                  </div>
+                  <div className="voice-wave" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                </div>
+              ) : null}
+
+              {selectedStudio.id === "battle" ? (
+                <div className="battle-stage">
+                  <div className="battle-score">
+                    <span>
+                      Learner
+                      <strong>{7 + completedCheckpoints.length + battleRound}</strong>
+                    </span>
+                    <span>
+                      AI rival
+                      <strong>{6 + battleRound}</strong>
+                    </span>
+                    <span>
+                      Tempo
+                      <strong>{Math.min(98, 62 + battleRound * 4)}%</strong>
+                    </span>
+                  </div>
+                  <div className="battle-arena" aria-hidden="true">
+                    <span className="battle-player learner">You</span>
+                    <span className="battle-orb battle-orb-a" />
+                    <span className="battle-orb battle-orb-b" />
+                    <span className="battle-player rival">AI</span>
+                  </div>
+                  <div className="battle-brief">
+                    <span>Round {battleRound}</span>
+                    <h4>{activeStudioStep.label}</h4>
+                    <p>{activeStudioStep.detail}</p>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -2045,6 +2145,10 @@ export function VisualearnExperience() {
                 <strong>{lesson?.topic}</strong>
               </span>
               <span>
+                Step
+                <strong>{activeStudioStep.label}</strong>
+              </span>
+              <span>
                 Voice
                 <strong>{voiceActive ? "Live" : "Ready"}</strong>
               </span>
@@ -2053,30 +2157,65 @@ export function VisualearnExperience() {
                 <strong>Round {battleRound}</strong>
               </span>
             </div>
+            <div className="studio-sequence" aria-label={`${selectedStudio.title} sequence`}>
+              {selectedStudioSequence.map((step, index) => (
+                <button
+                  className={studioStep === index ? "active" : ""}
+                  key={step.label}
+                  type="button"
+                  onClick={() => {
+                    setStudioStep(index);
+                    setStatusMessage(`${selectedStudio.title}: ${step.label}`);
+                  }}
+                >
+                  <span>{String(index + 1).padStart(2, "0")}</span>
+                  <strong>{step.label}</strong>
+                  <em>{step.detail}</em>
+                </button>
+              ))}
+            </div>
             <div className="studio-actions">
               <button
                 type="button"
                 onClick={() => {
-                  setVoiceActive((value) => !value);
-                  setStatusMessage(voiceActive ? "Narration paused" : "Voice walkthrough active");
+                  if (selectedStudio.id === "voice") {
+                    setVoiceActive((value) => !value);
+                    setStatusMessage(voiceActive ? "Narration paused" : "Voice walkthrough active");
+                    return;
+                  }
+
+                  if (selectedStudio.id === "battle") {
+                    setBattleRound((value) => value + 1);
+                    setMemorySignals((items) =>
+                      [`Battle round ${battleRound + 1}: pressure-tested recall`, ...items]
+                        .filter((item, index, all) => all.indexOf(item) === index)
+                        .slice(0, 4)
+                    );
+                    setStatusMessage("Quiz battle advanced");
+                    return;
+                  }
+
+                  setStudioStep((value) => (value + 1) % selectedStudioSequence.length);
+                  setStatusMessage("Whiteboard stroke advanced");
                 }}
               >
-                {voiceActive ? "Pause voice" : "Start voice"}
+                {selectedStudio.id === "voice"
+                  ? voiceActive
+                    ? "Pause voice"
+                    : "Start voice"
+                  : selectedStudio.id === "battle"
+                    ? "Advance battle"
+                    : "Advance stroke"}
               </button>
               <button
                 className="secondary-button"
                 type="button"
                 onClick={() => {
-                  setBattleRound((value) => value + 1);
-                  setMemorySignals((items) =>
-                    [`Battle round ${battleRound + 1}: pressure-tested recall`, ...items]
-                      .filter((item, index, all) => all.indexOf(item) === index)
-                      .slice(0, 4)
-                  );
-                  setStatusMessage("Quiz battle advanced");
+                  setStudioStep((value) => (value + 1) % selectedStudioSequence.length);
+                  setStatusMessage(`${selectedStudio.title} sequence advanced`);
                 }}
               >
-                Advance battle
+                Next studio step
               </button>
             </div>
           </aside>
@@ -2152,14 +2291,49 @@ export function VisualearnExperience() {
         </div>
         <div className="quiz-card">
           <div className="quiz-header">
-            <span>Streak</span>
-            <strong>{7 + completedCheckpoints.length}</strong>
+            <div>
+              <span>Prediction battle</span>
+              <strong>{quizStateLabel}</strong>
+            </div>
+            <div className="quiz-streak">
+              <span>Streak</span>
+              <strong>{7 + completedCheckpoints.length}</strong>
+            </div>
           </div>
-          <h3>Prediction check</h3>
-          <p>If the main variable increases, which connected concept reacts first?</p>
-          {hintRevealed ? <p className="hint-line">{lesson?.challenge}</p> : null}
+          <div className="quiz-arena" aria-label="Quiz battle telemetry">
+            <div className="quiz-radar" aria-hidden="true">
+              <span />
+              <span />
+              <strong>{Math.round(quizAccuracy)}%</strong>
+            </div>
+            <div className="quiz-telemetry">
+              <span>
+                Accuracy
+                <strong>{quizAccuracy}%</strong>
+              </span>
+              <span>
+                Pressure
+                <strong>{quizPressure}%</strong>
+              </span>
+              <span>
+                Tempo
+                <strong>{quizTempo}%</strong>
+              </span>
+            </div>
+          </div>
+          <div className="quiz-question">
+            <span>Checkpoint {activeCheckpoint + 1}</span>
+            <h3>Prediction check</h3>
+            <p>If the main variable increases, which connected concept reacts first?</p>
+          </div>
+          {hintRevealed ? (
+            <div className="hint-line">
+              <span>Coach hint</span>
+              <p>{lesson?.challenge}</p>
+            </div>
+          ) : null}
           <div className="quiz-options" aria-label="Quiz answer options">
-            {lesson?.quizOptions.map((option) => (
+            {lesson?.quizOptions.map((option, index) => (
               <button
                 className={[
                   "quiz-option",
@@ -2171,17 +2345,34 @@ export function VisualearnExperience() {
                 type="button"
                 onClick={() => selectQuizOption(option)}
               >
-                {option.label}
+                <span>{String.fromCharCode(65 + index)}</span>
+                <strong>{option.label}</strong>
+                {selectedQuizOption === option.id ? (
+                  <em>{option.correct ? "Model match" : "Needs repair"}</em>
+                ) : null}
               </button>
             ))}
           </div>
           {selectedOption ? (
-            <p className={selectedOption.correct ? "quiz-feedback correct" : "quiz-feedback incorrect"}>
-              {selectedOption.feedback}
-            </p>
+            <div className={selectedOption.correct ? "quiz-feedback correct" : "quiz-feedback incorrect"}>
+              <span>{selectedOption.correct ? "Clean prediction" : "Misconception found"}</span>
+              <p>{selectedOption.feedback}</p>
+            </div>
           ) : null}
-          <div className="mastery-signals">
-            {lesson?.masterySignals.map((signalItem) => <span key={signalItem}>{signalItem}</span>)}
+          <div className="quiz-trace" aria-label="Quiz reasoning trace">
+            {quizTrace.map((trace, index) => (
+              <span key={trace} className={index === quizTrace.length - 1 ? "active" : ""}>
+                {trace}
+              </span>
+            ))}
+          </div>
+          <div className="mastery-signals" aria-label="Mastery signals">
+            {lesson?.masterySignals.map((signalItem, index) => (
+              <span key={signalItem}>
+                <strong>{String(index + 1).padStart(2, "0")}</strong>
+                {signalItem}
+              </span>
+            ))}
           </div>
           <button type="button" onClick={() => setHintRevealed((value) => !value)}>
             {hintRevealed ? "Hide hint" : "Reveal hint"}
