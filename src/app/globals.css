@@ -616,6 +616,447 @@ button {
   gap: 10px;
 }
 
+.lesson-experience {
+  display: grid;
+  gap: 22px;
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+}
+
+.lesson-stage {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.62fr) minmax(420px, 1fr);
+  gap: 24px;
+  align-items: stretch;
+  padding: 48px 0 18px;
+}
+
+.lesson-stage-copy {
+  display: grid;
+  align-content: center;
+  gap: 16px;
+  min-height: 520px;
+}
+
+.lesson-stage-copy h1 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(46px, 6vw, 86px);
+  line-height: 0.96;
+  letter-spacing: -0.03em;
+}
+
+.lesson-stage-copy p:not(.result-eyebrow) {
+  max-width: 540px;
+  margin: 0;
+  color: #b4bfce;
+  font-size: 18px;
+  line-height: 1.58;
+}
+
+.simulation-shell,
+.checkpoint-card,
+.question-card,
+.source-row {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.055);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.22);
+}
+
+.simulation-shell {
+  display: grid;
+  gap: 14px;
+  min-height: 620px;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 50% 36%, rgba(156, 199, 255, 0.18), transparent 18rem),
+    rgba(255, 255, 255, 0.055);
+}
+
+.simulation-topline {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 6px 6px 0;
+}
+
+.simulation-topline div {
+  display: grid;
+  gap: 5px;
+}
+
+.simulation-topline span,
+.simulation-controls span,
+.checkpoint-tabs span {
+  color: #9cc7ff;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.simulation-topline strong {
+  color: #fff;
+  font-size: 24px;
+}
+
+.simulation-topline p {
+  max-width: 340px;
+  margin: 0;
+  color: #aeb9c8;
+  line-height: 1.45;
+}
+
+.simulation-canvas {
+  position: relative;
+  min-height: 380px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    radial-gradient(circle at calc(30% + var(--lesson-intensity) * 45%) 42%, rgba(156, 199, 255, 0.2), transparent 15rem),
+    rgba(3, 5, 8, 0.44);
+  background-size: 34px 34px, 34px 34px, auto, auto;
+}
+
+.simulation-canvas svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.sim-axis,
+.sim-link,
+.sim-tangent {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.26);
+  stroke-width: 2;
+}
+
+.sim-link,
+.sim-tangent {
+  stroke: rgba(156, 199, 255, 0.42);
+  stroke-dasharray: 8 10;
+  animation: simDash 4s linear infinite;
+}
+
+.sim-curve {
+  fill: none;
+  stroke: url("#lessonGlow");
+  stroke-width: 7;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 18px rgba(156, 199, 255, 0.36));
+  stroke-dasharray: 900;
+  animation: traceCurve 1.6s ease both;
+}
+
+.sim-node,
+.sim-hotspot,
+.sim-core {
+  fill: rgba(255, 255, 255, 0.86);
+  filter: drop-shadow(0 0 22px rgba(156, 199, 255, 0.36));
+}
+
+.sim-hotspot {
+  fill: #9cc7ff;
+  animation: simPulse 1.9s ease-in-out infinite;
+}
+
+.sim-node.muted {
+  opacity: 0.48;
+}
+
+.sim-core {
+  fill: url("#lessonGlow");
+}
+
+.sim-orbit {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 2;
+  transform-origin: center;
+  animation: cleanOrbit 12s linear infinite;
+}
+
+.sim-box,
+.sim-active-box {
+  fill: rgba(255, 255, 255, 0.08);
+  stroke: rgba(255, 255, 255, 0.14);
+  stroke-width: 1.5;
+}
+
+.sim-active-box {
+  fill: rgba(156, 199, 255, 0.18);
+  stroke: rgba(156, 199, 255, 0.62);
+}
+
+.sim-text {
+  fill: #f7fbff;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.simulation-labels {
+  position: absolute;
+  inset: auto 16px 16px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.simulation-labels span {
+  display: grid;
+  gap: 5px;
+  min-height: 82px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(3, 5, 8, 0.62);
+  color: #aeb9c8;
+  font-size: 12px;
+  line-height: 1.35;
+  backdrop-filter: blur(14px);
+}
+
+.simulation-labels span.active {
+  border-color: rgba(156, 199, 255, 0.5);
+  background: rgba(156, 199, 255, 0.12);
+}
+
+.simulation-labels strong {
+  color: #fff;
+  font-size: 13px;
+}
+
+.simulation-controls {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.simulation-controls label {
+  display: grid;
+  gap: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  padding: 13px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.simulation-controls label > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.simulation-controls strong {
+  color: #fff;
+}
+
+.simulation-controls input {
+  accent-color: #9cc7ff;
+}
+
+.control-steppers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.control-steppers button {
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.075);
+  color: #f7fbff;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.control-steppers button:hover {
+  border-color: rgba(156, 199, 255, 0.42);
+  background: rgba(156, 199, 255, 0.12);
+}
+
+.simulation-controls small,
+.checkpoint-card small,
+.question-card small {
+  color: #8f9daf;
+  line-height: 1.45;
+}
+
+.lesson-checkpoint-shell {
+  display: grid;
+  gap: 12px;
+}
+
+.checkpoint-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.checkpoint-tabs button {
+  min-height: 58px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.055);
+  color: #d7e1ef;
+  text-align: left;
+  font-weight: 850;
+  transition: transform 180ms ease, background 180ms ease, border-color 180ms ease;
+}
+
+.checkpoint-tabs button:hover,
+.checkpoint-tabs button.active {
+  transform: translateY(-2px);
+  border-color: rgba(156, 199, 255, 0.42);
+  background: rgba(156, 199, 255, 0.12);
+}
+
+.checkpoint-tabs span {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.checkpoint-card {
+  display: grid;
+  grid-template-columns: minmax(0, 0.72fr) minmax(320px, 1fr);
+  gap: 18px;
+  padding: 20px;
+}
+
+.checkpoint-card h2,
+.practice-heading h2 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(28px, 4vw, 46px);
+}
+
+.checkpoint-card p {
+  color: #c5d0df;
+  line-height: 1.58;
+}
+
+.practice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding-top: 14px;
+}
+
+.practice-heading {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  min-height: 220px;
+}
+
+.question-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-height: 220px;
+  padding: 18px;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.question-card.correct {
+  border-color: rgba(191, 255, 216, 0.34);
+  background: rgba(191, 255, 216, 0.08);
+}
+
+.question-card.incorrect {
+  border-color: rgba(255, 220, 168, 0.34);
+  background: rgba(255, 220, 168, 0.08);
+}
+
+.question-card h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 19px;
+  line-height: 1.28;
+}
+
+.question-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.question-options button {
+  min-height: 48px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.055);
+  color: #e7f0fb;
+  font-weight: 800;
+  text-align: left;
+}
+
+.question-options button:hover,
+.question-options button.selected {
+  border-color: rgba(156, 199, 255, 0.42);
+  background: rgba(156, 199, 255, 0.12);
+}
+
+.question-card p {
+  margin: 0;
+  color: #dfe9f6;
+  line-height: 1.5;
+}
+
+.source-row {
+  display: grid;
+  grid-template-columns: 1fr 0.8fr;
+  gap: 18px;
+  margin: 10px 0 80px;
+  padding: 20px;
+}
+
+.source-list,
+.follow-up-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.source-list a,
+.source-list p,
+.follow-up-list a {
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 13px;
+  background: rgba(255, 255, 255, 0.045);
+  color: #ccd7e6;
+  line-height: 1.45;
+}
+
+.source-list strong {
+  color: #fff;
+}
+
+.source-list span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.follow-up-list a {
+  color: #f4f8ff;
+  font-weight: 850;
+}
+
 .clean-landing {
   position: relative;
   isolation: isolate;
@@ -5886,9 +6327,25 @@ input[type="range"] {
 @media (max-width: 980px) {
   .result-nav,
   .result-hero,
+  .lesson-stage,
+  .checkpoint-card,
+  .source-row,
   .answer-grid,
   .result-steps,
   .model-part-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lesson-stage-copy {
+    min-height: auto;
+  }
+
+  .simulation-shell {
+    min-height: auto;
+  }
+
+  .simulation-controls,
+  .practice-grid {
     grid-template-columns: 1fr;
   }
 
@@ -6022,6 +6479,7 @@ input[type="range"] {
 @media (max-width: 640px) {
   .ask-nav,
   .result-nav,
+  .lesson-experience,
   .ask-panel,
   .result-hero,
   .answer-grid,
@@ -6069,13 +6527,45 @@ input[type="range"] {
     padding-top: 48px;
   }
 
-  .result-hero h1 {
+  .lesson-stage {
+    gap: 16px;
+    padding-top: 34px;
+  }
+
+  .result-hero h1,
+  .lesson-stage-copy h1 {
     font-size: clamp(42px, 14vw, 64px);
+  }
+
+  .simulation-topline,
+  .result-practice {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .simulation-canvas {
+    min-height: 470px;
+  }
+
+  .simulation-labels {
+    grid-template-columns: 1fr;
+  }
+
+  .checkpoint-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .question-options {
+    grid-template-columns: 1fr;
   }
 
   .answer-card,
   .result-practice,
-  .next-questions {
+  .next-questions,
+  .simulation-shell,
+  .checkpoint-card,
+  .question-card,
+  .source-row {
     border-radius: 22px;
   }
 

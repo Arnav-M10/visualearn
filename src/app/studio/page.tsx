@@ -7,8 +7,8 @@ export default function StudioPage() {
         </a>
         <div>
           <a href="/app">Simple ask</a>
-          <a className="studio-hub-primary" href="/studio/lab">
-            Open lab
+          <a className="studio-hub-primary" href="/learn?topic=black%20holes">
+            Open model
           </a>
         </div>
       </nav>
@@ -18,12 +18,12 @@ export default function StudioPage() {
           <p className="studio-hub-eyebrow">Advanced studio</p>
           <h1 id="studio-title">A focused control room for visual lessons.</h1>
           <p>
-            Use the simple app when you just want an answer. Open the lab when you want to
-            inspect the engine, compare models, tune visuals, and practice with richer tools.
+            Use the simple app when you just want a clean prompt. Open any generated model
+            when you want sliders, source-backed visuals, checkpoints, and practice.
           </p>
           <div className="studio-hub-actions">
-            <a className="studio-hub-primary" href="/studio/lab">
-              Launch immersive lab
+            <a className="studio-hub-primary" href="/learn?topic=black%20holes">
+              Launch visual model
             </a>
             <a href="/app">Ask a clean question</a>
           </div>
@@ -44,11 +44,11 @@ export default function StudioPage() {
           <div className="studio-hub-metrics">
             <span>
               <strong>4</strong>
-              render modes
+              simulation modes
             </span>
             <span>
               <strong>8</strong>
-              subject lenses
+              source lenses
             </span>
             <span>
               <strong>1</strong>
@@ -60,9 +60,9 @@ export default function StudioPage() {
 
       <section className="studio-hub-tools" aria-label="Studio tools">
         {[
-          ["Engine", "See how a topic turns into subject, model, explanation, and practice."],
-          ["Canvas", "Explore diagrams, graphs, analogies, and simulations without crowding the main app."],
-          ["Practice", "Use richer drills when a learner is ready to move past the first explanation."]
+          ["Engine", "Every topic becomes a source-backed model, not a saved hardcoded lesson."],
+          ["Canvas", "Graphs, flows, networks, timelines, particles, and orbits render from generated structure."],
+          ["Practice", "Questions appear inside checkpoints and again at the end so learning stays active."]
         ].map(([title, detail]) => (
           <article key={title}>
             <span>{title}</span>

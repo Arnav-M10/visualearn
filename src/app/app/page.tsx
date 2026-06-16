@@ -16,7 +16,7 @@ export default function AppPage() {
         <p className="ask-eyebrow">Ask anything</p>
         <h1 id="ask-title">What do you want to understand?</h1>
         <p className="ask-subtitle">
-          Type a topic. Visualearn will open a clean result page with the answer, visual model, and practice.
+          Type any topic. Visualearn generates a source-backed model with controls, questions, and a visual simulation first.
         </p>
 
         <form className="ask-form" action="/learn">
@@ -26,7 +26,7 @@ export default function AppPage() {
               id="topic"
               name="topic"
               type="search"
-              placeholder="Try: black holes, derivatives, DNA replication..."
+              placeholder="Try: black holes, derivatives, DNA replication, tariffs..."
               autoComplete="off"
               autoFocus
             />
