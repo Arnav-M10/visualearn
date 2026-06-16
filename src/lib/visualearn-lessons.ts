@@ -592,29 +592,125 @@ function buildSourceDerivedScene(topic: string, subject: string, sourceText: str
 function buildSourceDerivedBlocks(topic: string, sourceText: string, terms: string[], scene: LessonScene): LessonBlock[] {
   const sentences = getSentences(sourceText);
   const callouts = scene.callouts.length ? scene.callouts : [{ title: scene.title, body: scene.visualIntent, targetId: scene.elements[0]?.id }];
+  const value = `${topic} ${sourceText}`.toLowerCase();
+
+  if (/(cauchy|residue|contour|complex integral|singularit|pole)/.test(value)) {
+    return [
+      {
+        kind: "inspect",
+        title: "Start outside the formula",
+        body: "Before touching the equation, decide which singularities are inside the contour.",
+        targetId: "contour"
+      },
+      {
+        kind: "question",
+        title: "Prediction",
+        body: "Move the contour radius. What changes about the residue sum?",
+        targetId: "outside-pole",
+        question: {
+          question: "If the contour expands enough to enclose a new pole, what must happen to the residue theorem sum?",
+          choices: ["That pole's residue is added", "The theorem stops applying", "Only the contour color changes", "The old residues disappear"],
+          answer: "That pole's residue is added",
+          hint: "The integral counts enclosed singularities, not every singularity on the page."
+        }
+      },
+      {
+        kind: "visual",
+        title: "Separate inside from outside",
+        body: "Click each pole. Enclosed poles affect the integral; outside poles do not.",
+        targetId: "pole-a"
+      },
+      {
+        kind: "question",
+        title: "Checkpoint",
+        body: "Now connect the picture to the equation.",
+        targetId: "residue-formula",
+        question: {
+          question: "Why does the contour integral become a sum of residues?",
+          choices: ["Because only singular behavior inside the contour contributes", "Because every point on the curve has the same value", "Because outside poles cancel the contour", "Because the real axis is ignored"],
+          answer: "Because only singular behavior inside the contour contributes",
+          hint: "The theorem converts enclosed local singular data into the global contour integral."
+        }
+      },
+      {
+        kind: "challenge",
+        title: "Do the mental move",
+        body: "Hide the labels mentally: draw a loop, mark poles, circle the enclosed ones, then write 2 pi i times their residue sum.",
+        targetId: "inside"
+      }
+    ];
+  }
+
+  if (/(derivative|slope|tangent|differentiation|local linear)/.test(value)) {
+    return [
+      {
+        kind: "inspect",
+        title: "Pick one point",
+        body: "A derivative is not the whole curve. It is the behavior right around one input.",
+        targetId: "point"
+      },
+      {
+        kind: "question",
+        title: "Prediction",
+        body: "Move the zoom slider before answering.",
+        targetId: "zoom-window",
+        question: {
+          question: "As the window around x=a shrinks, what should the curve look more like?",
+          choices: ["Its tangent line", "A random zigzag", "The entire original curve", "A vertical axis"],
+          answer: "Its tangent line",
+          hint: "The derivative is a local linear approximation."
+        }
+      },
+      {
+        kind: "visual",
+        title: "Slide the point",
+        body: "Move point x. The tangent changes because the local rate depends on where you stand.",
+        targetId: "tangent"
+      },
+      {
+        kind: "question",
+        title: "Checkpoint",
+        body: "Connect the motion to the limit definition.",
+        targetId: "derivative-limit",
+        question: {
+          question: "What is h doing in the derivative limit?",
+          choices: ["Shrinking the comparison interval toward zero", "Changing the function's name", "Measuring area under the curve", "Picking a random y-value"],
+          answer: "Shrinking the comparison interval toward zero",
+          hint: "The fraction compares nearby outputs; the limit makes nearby become infinitesimal."
+        }
+      },
+      {
+        kind: "challenge",
+        title: "Transfer",
+        body: "If a curve is steeper at another point, predict how the tangent arrow should rotate before you move the slider.",
+        targetId: "tangent"
+      }
+    ];
+  }
+
   return [
     {
       kind: "visual",
-      title: callouts[0]?.title ?? "Start with the model",
+      title: "Observe first",
       body: callouts[0]?.body ?? scene.visualIntent,
       targetId: callouts[0]?.targetId
     },
     {
       kind: "question",
-      title: "Quick check",
-      body: "Answer before reading the next card.",
+      title: "Predict",
+      body: "Move one control. Decide what should change before looking for the answer.",
       targetId: callouts[1]?.targetId,
       question: sanitizeQuestion(
         {
-          question: `Which visual part is doing the main explanatory work for ${topic}?`,
+          question: `When the main condition changes in ${topic}, what should you track first?`,
           choices: [
-            callouts[1]?.title ?? scene.elements[0]?.label ?? "The highlighted part",
-            "The page title only",
-            "A decorative background",
-            "An unrelated outside fact"
+            "The relationship between the changed input and the highlighted result",
+            "Only the title of the lesson",
+            "The decorative background",
+            "Whichever label is longest"
           ],
-          answer: callouts[1]?.title ?? scene.elements[0]?.label ?? "The highlighted part",
-          hint: "Look for the element connected to cause, boundary, or transformation."
+          answer: "The relationship between the changed input and the highlighted result",
+          hint: "The useful move is to name what changes and why."
         },
         topic,
         terms,
@@ -623,41 +719,100 @@ function buildSourceDerivedBlocks(topic: string, sourceText: string, terms: stri
     },
     {
       kind: "inspect",
-      title: callouts[2]?.title ?? "Change one condition",
+      title: callouts[2]?.title ?? "Test one change",
       body: callouts[2]?.body ?? sentences[1] ?? `Use the controls to test what changes inside the ${topic} model.`,
       targetId: callouts[2]?.targetId
     },
     {
       kind: "micro",
-      title: "One-sentence model",
+      title: "Name the rule",
       body: compact(sentences[0] ?? scene.visualIntent, 180),
       targetId: callouts[0]?.targetId
     },
     {
       kind: "challenge",
-      title: "Transfer it",
-      body: `Change the topic slightly. Which part of this ${scene.format} would stay the same, and which part would need a new diagram?`,
+      title: "Use it somewhere new",
+      body: `Change one assumption in ${topic}. Predict which relationship in the model would break first.`,
       targetId: scene.elements.at(-1)?.id
     }
   ];
 }
 
 function buildSourceDerivedPractice(topic: string, terms: string[], scene: LessonScene): LessonQuestion[] {
+  const value = `${topic} ${scene.title} ${scene.visualIntent}`.toLowerCase();
+  if (/(cauchy|residue|contour|complex|pole)/.test(value)) {
+    return [
+      {
+        question: "A contour encloses two simple poles and leaves a third outside. Which residues appear in the theorem?",
+        choices: ["Only the two enclosed residues", "All three residues", "Only the outside residue", "No residues"],
+        answer: "Only the two enclosed residues",
+        hint: "Residue theorem is an inside-the-contour statement."
+      },
+      {
+        question: "What visual mistake would give the wrong contour integral?",
+        choices: ["Counting a pole outside the contour", "Drawing the axes lightly", "Writing the title too small", "Using a dark background"],
+        answer: "Counting a pole outside the contour",
+        hint: "The boundary decides which singularities contribute."
+      },
+      {
+        question: "What does each residue represent in this theorem?",
+        choices: ["The local contribution of a singularity", "The length of the contour", "The slope of the real axis", "The area inside the loop"],
+        answer: "The local contribution of a singularity",
+        hint: "Residues are local data at singular points."
+      },
+      {
+        question: "If no singularities are enclosed, what should the residue sum be?",
+        choices: ["Zero", "Always one", "The outside pole", "The contour radius"],
+        answer: "Zero",
+        hint: "No enclosed residues means nothing enters the sum."
+      }
+    ];
+  }
+
+  if (/(derivative|slope|tangent|local linear)/.test(value)) {
+    return [
+      {
+        question: "What does the derivative at x=a measure?",
+        choices: ["Instantaneous rate of change near a", "Total area under the curve", "Average height of the graph", "Where the graph starts"],
+        answer: "Instantaneous rate of change near a",
+        hint: "Think tangent, not area."
+      },
+      {
+        question: "Why does zooming in help explain derivatives?",
+        choices: ["The curve becomes locally line-like", "The curve becomes more random", "The axes disappear", "The formula stops mattering"],
+        answer: "The curve becomes locally line-like",
+        hint: "Differentiability means local linear behavior."
+      },
+      {
+        question: "If the tangent tilts upward more steeply, what changed?",
+        choices: ["The derivative got larger", "The function became constant", "The input disappeared", "The area became negative"],
+        answer: "The derivative got larger",
+        hint: "Slope is the visual form of rate."
+      },
+      {
+        question: "In the limit definition, why does h approach zero?",
+        choices: ["To turn average change into instantaneous change", "To delete the function", "To make every curve flat forever", "To measure the y-intercept"],
+        answer: "To turn average change into instantaneous change",
+        hint: "Smaller h means a smaller comparison window."
+      }
+    ];
+  }
+
   const labels = scene.callouts.map((callout) => callout.title).filter(Boolean);
   const first = labels[0] ?? scene.elements[0]?.label ?? "the highlighted element";
   const second = labels[1] ?? scene.elements[1]?.label ?? "the next element";
 
   return [
     {
-      question: `In this model of ${topic}, what should you inspect first?`,
-      choices: [first, "The footer sources", "The button labels", "A random color"],
-      answer: first,
-      hint: "Start where the scene assigns causal or boundary importance."
+      question: `What should you do before reading an explanation of ${topic}?`,
+      choices: ["Make a prediction from the model", "Memorize the title", "Ignore the controls", "Pick the longest word"],
+      answer: "Make a prediction from the model",
+      hint: "Learning by doing starts with a testable guess."
     },
     {
       question: `What is the best use of the controls in this lesson?`,
-      choices: ["Test how the visual relationship changes", "Hide the sources", "Change the topic title", "Skip the model"],
-      answer: "Test how the visual relationship changes",
+      choices: ["Test how a relationship changes", "Hide the sources", "Change the topic title", "Skip the model"],
+      answer: "Test how a relationship changes",
       hint: "Controls are for varying conditions, not decorating the page."
     },
     {
@@ -682,9 +837,9 @@ function lessonPrompt(topic: string, sources: LessonSource[]) {
         .join("\n\n")
     : "No reliable source summary was found. Be explicit about uncertainty and keep claims general.";
 
-  return `Generate a bespoke visual-first lesson for: ${topic}
+  return `Generate a Brilliant-style learn-by-doing lesson for: ${topic}
 
-Use the sources below as grounding. Do not invent unsupported factual claims. Spend the tokens needed to make the lesson precise. Text should be short because the visual scene carries the explanation.
+Use the sources below as grounding. Do not invent unsupported factual claims. Spend the tokens needed to make the lesson precise. Text should be short because the learner should understand by manipulating the model and answering prediction questions.
 
 ${sourceBlock}
 
@@ -730,7 +885,7 @@ Return ONLY JSON with this shape:
     {
       "kind": "visual|inspect|micro|question|challenge|source",
       "title": string,
-      "body": "max 32 words",
+      "body": "max 28 words, written as an action for the learner",
       "targetId": "element id",
       "question": {"question": string, "choices": [string,string,string,string], "answer": string, "hint": string}
     }
@@ -742,13 +897,16 @@ Return ONLY JSON with this shape:
 }
 
 Hard requirements:
+- Make this teach like Brilliant: observe, predict, manipulate, answer, reveal. The learner should do something every step.
+- Do not ask meta questions like "which visual part is explanatory?" Ask understanding questions about the concept.
 - Do not use a lesson template. Choose a different format and block order based on the concept.
 - Invent a visual grammar for this exact topic. Generic graph/network/flow is unacceptable unless the topic truly requires that exact object.
 - Every visual element must correspond to a real concept, step, object, boundary, force, event, or misconception from the topic.
+- Controls must have clear causal effects the renderer can animate: radius, position, zoom, intensity, time, mass, pressure, concentration, probability, etc.
 - For Cauchy Residue Theorem, draw a complex-plane contour with enclosed poles/residue sum/inside-vs-outside logic, not a derivative graph.
 - For derivatives, draw a curve, shrinking interval, tangent/local linearization, and limit idea.
 - Include at least 7 visual elements, 2 controls, 4 callouts, 5 blocks, and 4 practice questions.
-- At least 2 blocks should include questions. Questions should test causality, misconception, visual reading, and transfer.
+- At least 2 blocks should include prediction/checkpoint questions. Questions should test causality, misconception, visual reading, and transfer.
 - Keep prose concise and avoid paragraph walls.`;
 }
 
@@ -769,7 +927,7 @@ async function generateWithOpenAI(topic: string, sources: LessonSource[]): Promi
           {
             role: "system",
             content:
-              "You are Visualearn's lesson generator. Create source-grounded, bespoke visual models for any topic. Never reuse a generic template when the topic calls for a different structure. Return valid JSON only."
+              "You are Visualearn's lesson generator. Create source-grounded, Brilliant-style interactive lessons for any topic. Teach by doing: prediction, manipulation, feedback, transfer. Never ask meta questions about the model quality. Return valid JSON only."
           },
           {
             role: "user",

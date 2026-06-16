@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useState, type CSSProperties, type KeyboardEvent } from "react";
 import type { CleanLesson, LessonBlock, LessonQuestion, LessonVisualElement } from "@/lib/visualearn-lessons";
 
 type LessonExperienceProps = {
@@ -13,9 +13,11 @@ export function LessonExperience({ lesson }: LessonExperienceProps) {
   );
   const [activeBlockIndex, setActiveBlockIndex] = useState(0);
   const [activeTargetId, setActiveTargetId] = useState<string | undefined>();
+  const [selectedElementId, setSelectedElementId] = useState<string | undefined>();
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const activeBlock = lesson.blocks[activeBlockIndex] ?? lesson.blocks[0];
-  const activeId = activeTargetId ?? activeBlock?.targetId ?? lesson.scene.callouts[0]?.targetId ?? lesson.scene.elements[0]?.id;
+  const activeId = selectedElementId ?? activeTargetId ?? activeBlock?.targetId ?? lesson.scene.callouts[0]?.targetId ?? lesson.scene.elements[0]?.id;
+  const formatLabels = Array.from(new Set([lesson.format, lesson.scene.format].filter(Boolean)));
   const intensity = useMemo(() => {
     const normalized = lesson.scene.controls.map((control) => {
       const value = controlValues[control.label] ?? control.value;
@@ -37,6 +39,12 @@ export function LessonExperience({ lesson }: LessonExperienceProps) {
       [label]: Math.min(control.max, Math.max(control.min, (current[label] ?? control.value) + delta))
     }));
   };
+  const setControlValue = (label: string, value: number) => {
+    setControlValues((current) => ({
+      ...current,
+      [label]: value
+    }));
+  };
 
   return (
     <div className="lesson-experience">
@@ -44,10 +52,11 @@ export function LessonExperience({ lesson }: LessonExperienceProps) {
         <div className="lesson-stage-copy">
           <p className="result-eyebrow">{lesson.subject} / {lesson.confidence.replace("-", " ")}</p>
           <h1 id="lesson-stage-title">{lesson.topic}</h1>
-          <p>{lesson.summary}</p>
+          <p>{lesson.scene.visualIntent}</p>
           <div className="format-chip-row" aria-label="Generated lesson format">
-            <span>{lesson.format}</span>
-            <span>{lesson.scene.format}</span>
+            {formatLabels.map((label) => (
+              <span key={label}>{label}</span>
+            ))}
           </div>
         </div>
 
@@ -59,17 +68,6 @@ export function LessonExperience({ lesson }: LessonExperienceProps) {
             </div>
             <p>{lesson.scene.visualIntent}</p>
           </div>
-
-          <GeneratedSceneCanvas
-            lesson={lesson}
-            intensity={intensity}
-            activeId={activeId}
-            onActivateTarget={(targetId) => {
-              setActiveTargetId(targetId);
-              const nextIndex = lesson.blocks.findIndex((block) => block.targetId === targetId);
-              if (nextIndex >= 0) setActiveBlockIndex(nextIndex);
-            }}
-          />
 
           <div className="simulation-controls generated-controls" aria-label="Model controls">
             {lesson.scene.controls.map((control) => (
@@ -86,12 +84,8 @@ export function LessonExperience({ lesson }: LessonExperienceProps) {
                   min={control.min}
                   max={control.max}
                   value={controlValues[control.label] ?? control.value}
-                  onChange={(event) =>
-                    setControlValues((current) => ({
-                      ...current,
-                      [control.label]: Number(event.target.value)
-                    }))
-                  }
+                  onInput={(event) => setControlValue(control.label, Number(event.currentTarget.value))}
+                  onChange={(event) => setControlValue(control.label, Number(event.currentTarget.value))}
                 />
                 <div className="control-steppers" aria-label={`${control.label} quick controls`}>
                   <button type="button" onClick={() => updateControl(control.label, -10)}>
@@ -105,6 +99,19 @@ export function LessonExperience({ lesson }: LessonExperienceProps) {
               </label>
             ))}
           </div>
+
+          <GeneratedSceneCanvas
+            lesson={lesson}
+            intensity={intensity}
+            activeId={activeId}
+            controlValues={controlValues}
+            onActivateTarget={(targetId) => {
+              setActiveTargetId(targetId);
+              setSelectedElementId(targetId);
+              const nextIndex = lesson.blocks.findIndex((block) => block.targetId === targetId);
+              if (nextIndex >= 0) setActiveBlockIndex(nextIndex);
+            }}
+          />
         </div>
       </section>
 
@@ -125,6 +132,7 @@ export function LessonExperience({ lesson }: LessonExperienceProps) {
               onFocus={() => {
                 setActiveBlockIndex(index);
                 setActiveTargetId(block.targetId);
+                setSelectedElementId(block.targetId);
               }}
               onAnswer={(value) => setAnswers((current) => ({ ...current, [`block-${index}`]: value }))}
             />
@@ -257,15 +265,18 @@ function GeneratedSceneCanvas({
   lesson,
   intensity,
   activeId,
+  controlValues,
   onActivateTarget
 }: {
   lesson: CleanLesson;
   intensity: number;
   activeId?: string;
+  controlValues: Record<string, number>;
   onActivateTarget: (targetId: string) => void;
 }) {
   const elements = lesson.scene.elements;
   const byId = useMemo(() => new Map(elements.map((element) => [element.id, element])), [elements]);
+  const controlState = useMemo(() => getControlState(lesson, controlValues), [lesson, controlValues]);
   const sorted = useMemo(
     () =>
       [...elements].sort((a, b) => {
@@ -297,9 +308,21 @@ function GeneratedSceneCanvas({
           </defs>
           <BackgroundGrid background={lesson.scene.background} />
           {sorted.map((element) => (
-            <SceneElement key={element.id} element={element} byId={byId} active={element.id === activeId} />
+            <SceneElement
+              key={element.id}
+              element={element}
+              byId={byId}
+              active={element.id === activeId}
+              controlState={controlState}
+              background={lesson.scene.background}
+              onSelect={onActivateTarget}
+            />
           ))}
         </svg>
+        <div className="scene-active-caption">
+          <span>{elements.find((element) => element.id === activeId)?.label ?? lesson.scene.title}</span>
+          <strong>{elements.find((element) => element.id === activeId)?.detail ?? elements.find((element) => element.id === activeId)?.latex ?? "Click a part of the model or move a slider to test the idea."}</strong>
+        </div>
       </div>
       <div className="generated-callouts">
         {lesson.scene.callouts.slice(0, 4).map((callout) => (
@@ -356,61 +379,82 @@ function BackgroundGrid({ background }: { background: CleanLesson["scene"]["back
 function SceneElement({
   element,
   byId,
-  active
+  active,
+  controlState,
+  background,
+  onSelect
 }: {
   element: LessonVisualElement;
   byId: Map<string, LessonVisualElement>;
   active: boolean;
+  controlState: ControlState;
+  background: CleanLesson["scene"]["background"];
+  onSelect: (targetId: string) => void;
 }) {
   const className = `scene-element scene-${element.type} ${active ? "active" : ""}`;
-  const x = element.x ?? 50;
-  const y = element.y ?? 50;
+  const adjusted = adjustElement(element, controlState, background);
+  const x = adjusted.x ?? 50;
+  const y = adjusted.y ?? 50;
   const emphasis = element.emphasis ?? 0.5;
+  const interactiveProps = {
+    className,
+    style: {
+      opacity: adjusted.opacity,
+      transformOrigin: "50px 50px",
+      transform: adjusted.transform
+    } as CSSProperties,
+    role: "button",
+    tabIndex: 0,
+    onClick: () => onSelect(element.id),
+    onKeyDown: (event: KeyboardEvent<SVGGElement>) => {
+      if (event.key === "Enter" || event.key === " ") onSelect(element.id);
+    }
+  };
 
   if (element.type === "axis") {
     return (
-      <g className={className}>
+      <g {...interactiveProps}>
         <line x1="10" y1="82" x2="90" y2="82" />
         <line x1="14" y1="88" x2="14" y2="12" />
-        {element.label ? <text x="18" y="15">{element.label}</text> : null}
+        {active && element.label ? <text x="18" y="15">{element.label}</text> : null}
       </g>
     );
   }
 
   if (element.type === "region") {
     return (
-      <g className={className} style={{ opacity: 0.24 + emphasis * 0.55 }}>
-        <rect x={x} y={y} width={element.width ?? 18} height={element.height ?? 14} rx="5" />
-        <ElementLabel element={element} x={x + (element.width ?? 18) / 2} y={y + 5} />
+      <g {...interactiveProps} style={{ ...interactiveProps.style, opacity: adjusted.opacity ?? 0.24 + emphasis * 0.55 }}>
+        <rect x={x} y={y} width={adjusted.width ?? element.width ?? 18} height={adjusted.height ?? element.height ?? 14} rx="5" />
+        <ElementLabel element={element} x={x + (element.width ?? 18) / 2} y={y + 5} active={active} />
       </g>
     );
   }
 
   if (element.type === "surface" || element.type === "path") {
     return (
-      <g className={className}>
-        <path d={element.d ?? "M12 50 C30 20 70 20 88 50"} />
-        <ElementLabel element={element} x={x} y={y} />
+      <g {...interactiveProps}>
+        <path d={adjusted.d ?? element.d ?? "M12 50 C30 20 70 20 88 50"} />
+        <ElementLabel element={element} x={x} y={y} active={active} />
       </g>
     );
   }
 
   if (element.type === "curve") {
     return (
-      <g className={className}>
-        <path d={pointsToPath(element.points)} />
-        <ElementLabel element={element} x={element.points?.[Math.floor((element.points?.length ?? 1) / 2)]?.x ?? x} y={(element.points?.[1]?.y ?? y) - 5} />
+      <g {...interactiveProps}>
+        <path d={pointsToPath(adjusted.points ?? element.points)} />
+        <ElementLabel element={element} x={element.points?.[Math.floor((element.points?.length ?? 1) / 2)]?.x ?? x} y={(element.points?.[1]?.y ?? y) - 5} active={active} />
       </g>
     );
   }
 
   if (element.type === "vector") {
-    const x2 = element.x2 ?? x + 12;
-    const y2 = element.y2 ?? y - 12;
+    const x2 = adjusted.x2 ?? element.x2 ?? x + 12;
+    const y2 = adjusted.y2 ?? element.y2 ?? y - 12;
     return (
-      <g className={className}>
+      <g {...interactiveProps}>
         <line x1={x} y1={y} x2={x2} y2={y2} markerEnd="url(#sceneArrow)" />
-        <ElementLabel element={element} x={(x + x2) / 2 + 3} y={(y + y2) / 2 - 3} />
+        <ElementLabel element={element} x={(x + x2) / 2 + 3} y={(y + y2) / 2 - 3} active={active} />
       </g>
     );
   }
@@ -421,19 +465,19 @@ function SceneElement({
     if (!from || !to) return null;
 
     return (
-      <g className={className}>
+      <g {...interactiveProps}>
         <line x1={from.x ?? 50} y1={from.y ?? 50} x2={to.x ?? 50} y2={to.y ?? 50} />
-        <ElementLabel element={element} x={((from.x ?? 50) + (to.x ?? 50)) / 2} y={((from.y ?? 50) + (to.y ?? 50)) / 2 - 2} />
+        <ElementLabel element={element} x={((from.x ?? 50) + (to.x ?? 50)) / 2} y={((from.y ?? 50) + (to.y ?? 50)) / 2 - 2} active={active} />
       </g>
     );
   }
 
   if (element.type === "particle") {
     return (
-      <g className={className}>
+      <g {...interactiveProps}>
         <circle cx={x} cy={y} r={2.1 + emphasis * 2.2} />
         <circle cx={x} cy={y} r={6 + emphasis * 4} className="scene-pulse-ring" />
-        <ElementLabel element={element} x={x + 7} y={y - 5} />
+        <ElementLabel element={element} x={x + 7} y={y - 5} active={active} />
       </g>
     );
   }
@@ -441,9 +485,9 @@ function SceneElement({
   if (element.type === "node") {
     const width = Math.max(14, Math.min(30, (element.label?.length ?? 8) * 1.25));
     return (
-      <g className={className}>
+      <g {...interactiveProps}>
         <rect x={x - width / 2} y={y - 5.5} width={width} height="11" rx="4" />
-        <text x={x} y={y + 1.2} textAnchor="middle">
+        <text x={x} y={y + 1.2} textAnchor="middle" className={active ? "" : "scene-hidden-text"}>
           {element.label}
         </text>
       </g>
@@ -451,31 +495,155 @@ function SceneElement({
   }
 
   if (element.type === "formula") {
+    const formulaLabel = element.label || "formula";
+    const width = Math.max(16, Math.min(30, formulaLabel.length * 1.2));
     return (
-      <g className={className}>
-        <rect x={Math.max(4, x - 28)} y={y - 7} width="56" height="14" rx="4" />
-        <text x={x} y={y + 1.5} textAnchor="middle">
-          {element.latex || element.label}
+      <g {...interactiveProps}>
+        <rect x={Math.max(4, x - width / 2)} y={y - 5.5} width={width} height="11" rx="4" />
+        <text x={x} y={y + 1.2} textAnchor="middle" className={active ? "" : "scene-hidden-text"}>
+          {formulaLabel}
         </text>
       </g>
     );
   }
 
   return (
-    <g className={className}>
+    <g {...interactiveProps}>
       <circle cx={x} cy={y} r="3" />
-      <ElementLabel element={element} x={x + 5} y={y - 4} />
+      <ElementLabel element={element} x={x + 5} y={y - 4} active={active} />
     </g>
   );
 }
 
-function ElementLabel({ element, x, y }: { element: LessonVisualElement; x: number; y: number }) {
-  if (!element.label) return null;
+function ElementLabel({ element, x, y, active }: { element: LessonVisualElement; x: number; y: number; active: boolean }) {
+  if (["path", "surface", "region", "vector", "link"].includes(element.type)) return null;
+  if (!element.label || !active) return null;
   return (
     <text x={x} y={y} className="scene-label">
       {element.label}
     </text>
   );
+}
+
+type ControlState = {
+  primary: number;
+  secondary: number;
+  byLabel: Record<string, number>;
+};
+
+function getControlState(lesson: CleanLesson, values: Record<string, number>): ControlState {
+  const byLabel: Record<string, number> = {};
+  lesson.scene.controls.forEach((control) => {
+    const value = values[control.label] ?? control.value;
+    byLabel[control.label.toLowerCase()] = (value - control.min) / Math.max(1, control.max - control.min);
+  });
+
+  const normalized = Object.values(byLabel);
+  return {
+    primary: normalized[0] ?? 0.5,
+    secondary: normalized[1] ?? normalized[0] ?? 0.5,
+    byLabel
+  };
+}
+
+function adjustElement(element: LessonVisualElement, controlState: ControlState, background: CleanLesson["scene"]["background"]): Partial<LessonVisualElement> & {
+  opacity?: number;
+  transform?: string;
+} {
+  const primary = controlState.primary;
+  const secondary = controlState.secondary;
+  const id = element.id.toLowerCase();
+  const label = `${element.label ?? ""} ${element.detail ?? ""}`.toLowerCase();
+  const point = controlState.byLabel["point x"] ?? secondary;
+  const zoom = controlState.byLabel.zoom ?? primary;
+  const contour = controlState.byLabel["contour radius"] ?? primary;
+  const residue = controlState.byLabel["residue weight"] ?? secondary;
+
+  if (background === "contour") {
+    const scale = 0.72 + contour * 0.58;
+    if (id.includes("contour") || id.includes("inside")) {
+      return {
+        opacity: 0.35 + contour * 0.58,
+        transform: `scale(${scale})`
+      };
+    }
+    if (id.includes("pole-a") || id.includes("pole-b")) {
+      return {
+        opacity: 0.42 + residue * 0.58,
+        transform: `scale(${0.88 + residue * 0.28})`
+      };
+    }
+    if (id.includes("outside")) {
+      return {
+        opacity: 0.2 + (1 - contour) * 0.45,
+        transform: `translate(${(contour - 0.5) * 8}px ${(0.5 - contour) * 5}px)`
+      };
+    }
+    if (id.includes("formula")) {
+      return { opacity: 0.35 + residue * 0.65 };
+    }
+  }
+
+  if (label.includes("tangent") || id.includes("tangent")) {
+    const x = 24 + point * 32;
+    const y = 62 - point * 30;
+    const slope = -20 - zoom * 18;
+    return {
+      x,
+      y,
+      x2: x + 34,
+      y2: y + slope,
+      opacity: 0.45 + zoom * 0.55
+    };
+  }
+
+  if (id.includes("point") || label.includes("x=a")) {
+    return {
+      x: 28 + point * 42,
+      y: 64 - point * 30,
+      opacity: 0.72 + zoom * 0.28,
+      transform: `scale(${0.9 + zoom * 0.24})`
+    };
+  }
+
+  if (id.includes("zoom") || label.includes("interval")) {
+    const size = 28 - zoom * 16;
+    return {
+      x: 34 + point * 26,
+      y: 30 + point * 12,
+      width: size,
+      height: size,
+      opacity: 0.18 + zoom * 0.42
+    };
+  }
+
+  if (element.type === "curve" && element.points) {
+    return {
+      points: element.points.map((item) => ({
+        x: item.x,
+        y: item.y + Math.sin((item.x + primary * 100) / 12) * (secondary - 0.5) * 8
+      })),
+      opacity: 0.68 + primary * 0.26
+    };
+  }
+
+  if (element.type === "vector") {
+    return {
+      opacity: 0.44 + primary * 0.5,
+      transform: `scale(${0.94 + primary * 0.14})`
+    };
+  }
+
+  if (element.type === "node" || element.type === "particle") {
+    return {
+      opacity: 0.45 + (element.emphasis ?? 0.5) * 0.3 + primary * 0.25,
+      transform: `scale(${0.92 + secondary * 0.18})`
+    };
+  }
+
+  return {
+    opacity: 0.72 + primary * 0.18
+  };
 }
 
 function pointsToPath(points?: { x: number; y: number }[]) {
