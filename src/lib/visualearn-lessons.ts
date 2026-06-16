@@ -20,6 +20,29 @@ export type LessonQuestion = {
   hint: string;
 };
 
+export type LessonVisualBinding = {
+  control: string;
+  property:
+    | "x"
+    | "y"
+    | "x2"
+    | "y2"
+    | "width"
+    | "height"
+    | "opacity"
+    | "scale"
+    | "rotate"
+    | "translateX"
+    | "translateY"
+    | "pathScale"
+    | "pointX"
+    | "pointY";
+  amount: number;
+  pivotX?: number;
+  pivotY?: number;
+  direction?: "normal" | "inverse";
+};
+
 export type LessonVisualElement = {
   type:
     | "axis"
@@ -48,6 +71,7 @@ export type LessonVisualElement = {
   height?: number;
   latex?: string;
   emphasis?: number;
+  bindings?: LessonVisualBinding[];
 };
 
 export type LessonScene = {
@@ -72,6 +96,17 @@ export type LessonBlock = {
   question?: LessonQuestion;
 };
 
+export type LessonActivity = {
+  kind: "observe" | "predict" | "manipulate" | "check" | "reveal" | "transfer";
+  title: string;
+  prompt: string;
+  action?: string;
+  targetId?: string;
+  control?: string;
+  reveal: string;
+  question?: LessonQuestion;
+};
+
 export type CleanLesson = {
   topic: string;
   subject: string;
@@ -81,6 +116,7 @@ export type CleanLesson = {
   format: string;
   scene: LessonScene;
   blocks: LessonBlock[];
+  activities: LessonActivity[];
   practice: LessonQuestion[];
   followUps: string[];
 };
@@ -101,6 +137,23 @@ const visualTypes = new Set<LessonVisualElement["type"]>([
 
 const backgrounds = new Set<LessonScene["background"]>(["plane", "contour", "field", "lab", "timeline", "space", "none"]);
 const blockKinds = new Set<LessonBlock["kind"]>(["visual", "inspect", "micro", "question", "challenge", "source"]);
+const activityKinds = new Set<LessonActivity["kind"]>(["observe", "predict", "manipulate", "check", "reveal", "transfer"]);
+const bindingProperties = new Set<LessonVisualBinding["property"]>([
+  "x",
+  "y",
+  "x2",
+  "y2",
+  "width",
+  "height",
+  "opacity",
+  "scale",
+  "rotate",
+  "translateX",
+  "translateY",
+  "pathScale",
+  "pointX",
+  "pointY"
+]);
 
 function normalizeTopic(topicInput: string) {
   return topicInput.trim().replace(/\s+/g, " ") || "black holes";
@@ -110,8 +163,8 @@ function inferSubject(topic: string, sourceText = "") {
   const value = `${topic} ${sourceText}`.toLowerCase();
 
   if (/(derivative|integral|residue|cauchy|contour|matrix|vector|equation|calculus|algebra|geometry|probability|statistics|slope|function|theorem|proof|complex)/.test(value)) return "Math";
-  if (/(gravity|motion|wave|quantum|force|energy|relativity|electric|magnet|momentum|velocity|mass|particle|field)/.test(value)) return "Physics";
   if (/(revolution|empire|war|history|civilization|treaty|dynasty|colonial|ancient|medieval|state|political)/.test(value)) return "History";
+  if (/\b(gravity|motion|wave|quantum|force|energy|relativity|electric|magnet|momentum|velocity|mass|particle|field)\b/.test(value)) return "Physics";
   if (/(dna|cell|biology|organ|ecosystem|protein|evolution|gene|mitosis|photosynthesis|enzyme|organism|species)/.test(value)) return "Biology";
   if (/(algorithm|code|recursion|sorting|computer|programming|data|binary|network|database|software|model|neural)/.test(value)) return "Computer Science";
   if (/(market|supply|demand|economics|inflation|trade|money|price|finance|interest|capital|labor)/.test(value)) return "Economics";
@@ -264,7 +317,7 @@ function sanitizeQuestion(question: Partial<LessonQuestion> | undefined, topic: 
     question:
       typeof question?.question === "string" && question.question.trim()
         ? compact(question.question, 150)
-        : `What part of the ${topic} model should move first when ${terms[index] ?? "the key condition"} changes?`,
+        : `If ${terms[index] ?? "the key condition"} changes in ${topic}, what should change next?`,
     choices,
     answer:
       typeof question?.answer === "string" && question.answer.trim() && choices.includes(compact(question.answer, 80))
@@ -273,7 +326,7 @@ function sanitizeQuestion(question: Partial<LessonQuestion> | undefined, topic: 
     hint:
       typeof question?.hint === "string" && question.hint.trim()
         ? compact(question.hint, 150)
-        : "Read the highlighted visual relationship, then decide what is causal instead of decorative."
+        : "Track the cause first, then follow the effect it forces."
   };
 }
 
@@ -288,6 +341,84 @@ function sanitizeControl(control: Partial<LessonControl> | undefined, index: num
     unit: typeof control?.unit === "string" ? compact(control.unit, 8) : "",
     effect: compact(String(control?.effect || "Changes what the visual emphasizes."), 110)
   };
+}
+
+function controlKey(value: string) {
+  return value.toLowerCase().replace(/[^\w]+/g, " ").trim();
+}
+
+function sanitizeBinding(binding: Partial<LessonVisualBinding> | undefined, controls: LessonControl[], index: number): LessonVisualBinding | null {
+  const fallbackControl = controls[index % Math.max(1, controls.length)]?.label;
+  const rawControl = typeof binding?.control === "string" && binding.control.trim() ? binding.control : fallbackControl;
+  if (!rawControl) return null;
+
+  const matchedControl =
+    controls.find((control) => controlKey(control.label) === controlKey(rawControl)) ??
+    controls.find((control) => controlKey(control.label).includes(controlKey(rawControl)) || controlKey(rawControl).includes(controlKey(control.label)));
+
+  const property = bindingProperties.has(binding?.property as LessonVisualBinding["property"])
+    ? (binding?.property as LessonVisualBinding["property"])
+    : "scale";
+
+  return {
+    control: matchedControl?.label ?? rawControl,
+    property,
+    amount: safeNumber(binding?.amount, 0.18, -80, 80),
+    pivotX: binding?.pivotX === undefined ? 50 : safeCoord(binding.pivotX, 50),
+    pivotY: binding?.pivotY === undefined ? 50 : safeCoord(binding.pivotY, 50),
+    direction: binding?.direction === "inverse" ? "inverse" : "normal"
+  };
+}
+
+function defaultBindingsForElement(element: LessonVisualElement, controls: LessonControl[], index: number): LessonVisualBinding[] {
+  const primary = controls[0]?.label;
+  const secondary = controls[1]?.label ?? primary;
+  if (!primary) return [];
+
+  const pivotX = element.x ?? 50;
+  const pivotY = element.y ?? 50;
+  const stagger = ((index % 5) - 2) * 1.8;
+
+  if (element.type === "curve") {
+    return [
+      { control: primary, property: "pointY", amount: 12 + stagger, pivotX, pivotY },
+      { control: secondary ?? primary, property: "translateX", amount: 5, pivotX, pivotY }
+    ];
+  }
+
+  if (element.type === "path" || element.type === "surface") {
+    return [
+      { control: primary, property: "pathScale", amount: 0.32, pivotX: 50, pivotY: 50 },
+      { control: secondary ?? primary, property: "opacity", amount: 0.28, pivotX: 50, pivotY: 50 }
+    ];
+  }
+
+  if (element.type === "region") {
+    return [
+      { control: primary, property: "width", amount: 12 + stagger, pivotX, pivotY },
+      { control: secondary ?? primary, property: "height", amount: 9 - stagger, pivotX, pivotY }
+    ];
+  }
+
+  if (element.type === "vector") {
+    return [
+      { control: primary, property: "rotate", amount: 22 + stagger, pivotX, pivotY },
+      { control: secondary ?? primary, property: "x2", amount: 8, pivotX, pivotY }
+    ];
+  }
+
+  if (element.type === "link") {
+    return [{ control: primary, property: "opacity", amount: 0.42, pivotX, pivotY }];
+  }
+
+  if (element.type === "formula") {
+    return [{ control: secondary ?? primary, property: "opacity", amount: 0.44, pivotX, pivotY }];
+  }
+
+  return [
+    { control: primary, property: index % 2 === 0 ? "translateY" : "translateX", amount: 9 + stagger, pivotX, pivotY },
+    { control: secondary ?? primary, property: "scale", amount: 0.22, pivotX, pivotY }
+  ];
 }
 
 function sanitizeElement(element: Partial<LessonVisualElement>, index: number): LessonVisualElement {
@@ -315,7 +446,8 @@ function sanitizeElement(element: Partial<LessonVisualElement>, index: number): 
     width: element.width === undefined ? undefined : safeNumber(element.width, 18, 1, 100),
     height: element.height === undefined ? undefined : safeNumber(element.height, 12, 1, 100),
     latex: typeof element.latex === "string" ? compact(element.latex, 70) : undefined,
-    emphasis: safeNumber(element.emphasis, 0.55, 0, 1)
+    emphasis: safeNumber(element.emphasis, 0.55, 0, 1),
+    bindings: undefined
   };
 }
 
@@ -324,8 +456,21 @@ function sanitizeScene(scene: Partial<LessonScene> | undefined, topic: string, s
   const terms = extractTerms(`${topic} ${sourceText}`, topic);
   const fallbackScene = buildSourceDerivedScene(topic, subject, sourceText, terms);
   const rawElements = Array.isArray(scene?.elements) && scene.elements.length >= 4 ? scene.elements : fallbackScene.elements;
-  const elements = rawElements.slice(0, 18).map(sanitizeElement);
-  const controls = Array.isArray(scene?.controls) && scene.controls.length > 0 ? scene.controls : fallbackScene.controls;
+  const rawControls = Array.isArray(scene?.controls) && scene.controls.length > 0 ? scene.controls : fallbackScene.controls;
+  const controls = rawControls.slice(0, 4).map(sanitizeControl);
+  const elements = rawElements.slice(0, 18).map((element, index) => {
+    const sanitized = sanitizeElement(element, index);
+    const rawBindings = Array.isArray(element.bindings) ? element.bindings : [];
+    const bindings = rawBindings
+      .slice(0, 5)
+      .map((binding, bindingIndex) => sanitizeBinding(binding, controls, bindingIndex))
+      .filter((binding): binding is LessonVisualBinding => Boolean(binding));
+
+    return {
+      ...sanitized,
+      bindings: bindings.length ? bindings : defaultBindingsForElement(sanitized, controls, index)
+    };
+  });
   const callouts = Array.isArray(scene?.callouts) && scene.callouts.length >= 2 ? scene.callouts : fallbackScene.callouts;
   const background = backgrounds.has(scene?.background as LessonScene["background"])
     ? (scene?.background as LessonScene["background"])
@@ -336,13 +481,59 @@ function sanitizeScene(scene: Partial<LessonScene> | undefined, topic: string, s
     format: compact(String(scene?.format || fallbackScene.format || "custom visual model"), 42),
     visualIntent: compact(String(scene?.visualIntent || fallbackScene.visualIntent), 180),
     background,
-    controls: controls.slice(0, 4).map(sanitizeControl),
+    controls,
     elements,
     callouts: callouts.slice(0, 6).map((callout, index) => ({
       title: compact(String(callout.title || terms[index] || `Signal ${index + 1}`), 42),
       body: compact(String(callout.body || `Watch this part of ${topic} before reading more.`), 150),
       targetId: typeof callout.targetId === "string" ? callout.targetId.trim().replace(/[^\w-]/g, "-") : elements[index]?.id
     }))
+  };
+}
+
+function blockToActivity(block: LessonBlock, topic: string, terms: string[], index: number): LessonActivity {
+  const kindMap: Record<LessonBlock["kind"], LessonActivity["kind"]> = {
+    visual: "observe",
+    inspect: "manipulate",
+    micro: "reveal",
+    question: "predict",
+    challenge: "transfer",
+    source: "reveal"
+  };
+
+  return {
+    kind: kindMap[block.kind] ?? "observe",
+    title: block.title,
+    prompt: block.body ?? `Use the model to make one concrete prediction about ${topic}.`,
+    action: block.kind === "question" ? "Choose an answer before reading the reveal." : "Touch the highlighted object, then move a slider.",
+    targetId: block.targetId,
+    reveal: block.question?.hint ?? block.body ?? `The key is how ${terms[index] ?? "the highlighted relationship"} changes when the condition changes.`,
+    question: block.question
+  };
+}
+
+function sanitizeActivity(activity: Partial<LessonActivity> | undefined, blocks: LessonBlock[], topic: string, terms: string[], index: number): LessonActivity {
+  const fallback = blockToActivity(blocks[index % Math.max(1, blocks.length)] ?? blocks[0], topic, terms, index);
+  const question = activity?.question ? sanitizeQuestion(activity.question, topic, terms, index) : fallback.question;
+
+  return {
+    kind: activityKinds.has(activity?.kind as LessonActivity["kind"]) ? (activity?.kind as LessonActivity["kind"]) : fallback.kind,
+    title: compact(String(activity?.title || fallback.title || `Step ${index + 1}`), 56),
+    prompt: compact(String(activity?.prompt || fallback.prompt), 180),
+    action:
+      typeof activity?.action === "string" && activity.action.trim()
+        ? compact(activity.action, 130)
+        : fallback.action,
+    targetId:
+      typeof activity?.targetId === "string" && activity.targetId.trim()
+        ? activity.targetId.trim().replace(/[^\w-]/g, "-")
+        : fallback.targetId,
+    control:
+      typeof activity?.control === "string" && activity.control.trim()
+        ? compact(activity.control, 32)
+        : undefined,
+    reveal: compact(String(activity?.reveal || fallback.reveal), 180),
+    question
   };
 }
 
@@ -357,6 +548,16 @@ function sanitizeLesson(value: Partial<CleanLesson>, topic: string, sources: Les
   const practice = Array.isArray(value.practice) && value.practice.length >= 3
     ? value.practice
     : buildSourceDerivedPractice(topic, terms, scene);
+  const sanitizedBlocks = blocks.slice(0, 9).map((block, index) => ({
+    kind: blockKinds.has(block.kind as LessonBlock["kind"]) ? (block.kind as LessonBlock["kind"]) : index % 3 === 1 ? "question" : "inspect",
+    title: compact(String(block.title || scene.callouts[index]?.title || `Move ${index + 1}`), 56),
+    body: typeof block.body === "string" ? compact(block.body, 180) : scene.callouts[index]?.body,
+    targetId: typeof block.targetId === "string" ? block.targetId.trim().replace(/[^\w-]/g, "-") : scene.callouts[index]?.targetId,
+    question: block.question ? sanitizeQuestion(block.question, topic, terms, index) : index % 3 === 1 ? sanitizeQuestion(undefined, topic, terms, index) : undefined
+  }));
+  const rawActivities = Array.isArray(value.activities) && value.activities.length >= 4
+    ? value.activities
+    : sanitizedBlocks.map((block, index) => blockToActivity(block, topic, terms, index));
 
   return {
     topic: typeof value.topic === "string" && value.topic.trim() ? value.topic.trim() : topic,
@@ -369,13 +570,8 @@ function sanitizeLesson(value: Partial<CleanLesson>, topic: string, sources: Les
         : compact(getSentences(sourceText).slice(0, 2).join(" ") || `Visualearn could not find a strong source for ${topic}, so this model stays conceptual and asks you to verify details before going deep.`, 240),
     format: compact(String(value.format || scene.format || "custom visual lesson"), 44),
     scene,
-    blocks: blocks.slice(0, 9).map((block, index) => ({
-      kind: blockKinds.has(block.kind as LessonBlock["kind"]) ? (block.kind as LessonBlock["kind"]) : index % 3 === 1 ? "question" : "inspect",
-      title: compact(String(block.title || scene.callouts[index]?.title || `Move ${index + 1}`), 56),
-      body: typeof block.body === "string" ? compact(block.body, 180) : scene.callouts[index]?.body,
-      targetId: typeof block.targetId === "string" ? block.targetId.trim().replace(/[^\w-]/g, "-") : scene.callouts[index]?.targetId,
-      question: block.question ? sanitizeQuestion(block.question, topic, terms, index) : index % 3 === 1 ? sanitizeQuestion(undefined, topic, terms, index) : undefined
-    })),
+    blocks: sanitizedBlocks,
+    activities: rawActivities.slice(0, 8).map((activity, index) => sanitizeActivity(activity, sanitizedBlocks, topic, terms, index)),
     practice: practice.slice(0, 6).map((question, index) => sanitizeQuestion(question, topic, terms, index)),
     followUps:
       Array.isArray(value.followUps) && value.followUps.length >= 3
@@ -503,8 +699,42 @@ function buildSourceDerivedScene(topic: string, subject: string, sourceText: str
     };
   }
 
-  if (/(war|revolution|history|empire|treaty|dynasty|era|period)/.test(value)) {
-    const labels = terms.length >= 4 ? terms.slice(0, 5) : ["pressure", "spark", "turning point", "reaction", "legacy"];
+  if (/(neural|network|algorithm|recursion|sorting|data structure|machine learning|model|classification|training|programming|database|binary)/.test(value)) {
+    const inputLabel = terms[0] ?? "input";
+    const hiddenLabel = terms[1] ?? "hidden layer";
+    const outputLabel = terms[2] ?? "output";
+    return {
+      title: "Signal, weight, and output",
+      format: "activation pathway",
+      visualIntent: `Watch ${topic} as inputs are weighted, transformed, and turned into an output decision.`,
+      background: "field",
+      controls: [
+        { label: "input signal", min: 0, max: 100, value: 58, unit: "%", effect: "Changes how strongly the first layer fires." },
+        { label: "weight strength", min: 0, max: 100, value: 48, unit: "%", effect: "Changes how much signal crosses each connection." }
+      ],
+      elements: [
+        { type: "node", id: "input-a", label: inputLabel, detail: "Raw information entering the system.", x: 16, y: 35, emphasis: 0.82 },
+        { type: "node", id: "input-b", label: terms[3] ?? "feature", detail: "Another input feature.", x: 16, y: 62, emphasis: 0.68 },
+        { type: "node", id: "hidden-a", label: hiddenLabel, detail: "Intermediate unit combining weighted inputs.", x: 48, y: 30, emphasis: 0.92 },
+        { type: "node", id: "hidden-b", label: terms[4] ?? "activation", detail: "A transformed internal signal.", x: 48, y: 66, emphasis: 0.82 },
+        { type: "node", id: "output", label: outputLabel, detail: "The final response or prediction.", x: 82, y: 48, emphasis: 1 },
+        { type: "link", id: "weight-a", from: "input-a", to: "hidden-a", label: "weight", emphasis: 0.76 },
+        { type: "link", id: "weight-b", from: "input-b", to: "hidden-b", label: "weight", emphasis: 0.62 },
+        { type: "link", id: "combine-a", from: "hidden-a", to: "output", label: "combine", emphasis: 0.86 },
+        { type: "link", id: "combine-b", from: "hidden-b", to: "output", label: "combine", emphasis: 0.74 },
+        { type: "formula", id: "activation-rule", label: "activation", latex: "output = activation(weighted inputs)", x: 50, y: 88, emphasis: 0.74 }
+      ],
+      callouts: [
+        { title: "Feed inputs", body: "The system starts with measurable features, not a final answer.", targetId: "input-a" },
+        { title: "Weight signals", body: "Connections decide how much each input matters.", targetId: "weight-a" },
+        { title: "Transform inside", body: "Hidden units combine signals into new internal features.", targetId: "hidden-a" },
+        { title: "Read output", body: "The output depends on the path and strength of prior signals.", targetId: "output" }
+      ]
+    };
+  }
+
+  if (/(war|revolution|history|empire|treaty|dynasty|colonial|ancient|medieval)/.test(value)) {
+    const labels = ["long pressure", "failed restraint", "trigger", "escalation", "legacy"];
     return {
       title: "Cause and consequence timeline",
       format: "event-chain map",
@@ -514,14 +744,20 @@ function buildSourceDerivedScene(topic: string, subject: string, sourceText: str
         { label: "time focus", min: 0, max: 100, value: 42, unit: "%", effect: "Slides attention from causes toward consequences." },
         { label: "context depth", min: 0, max: 100, value: 56, unit: "%", effect: "Reveals wider political or social pressure." }
       ],
-      elements: labels.map((label, index) => ({
+      elements: (labels.map((label, index): LessonVisualElement => ({
         type: "node",
         id: `event-${index}`,
         label,
+        detail: compact(getSentences(sourceText)[index] ?? `${label} is one causal role in ${topic}.`, 120),
         x: 14 + index * 18,
         y: index % 2 ? 58 : 42,
         emphasis: index === 2 ? 1 : 0.6
-      })),
+      })) as LessonVisualElement[]).concat([
+        { type: "link", id: "history-link-0", from: "event-0", to: "event-1", label: "feeds", emphasis: 0.6 },
+        { type: "link", id: "history-link-1", from: "event-1", to: "event-2", label: "fails to stop", emphasis: 0.7 },
+        { type: "link", id: "history-link-2", from: "event-2", to: "event-3", label: "triggers", emphasis: 0.9 },
+        { type: "link", id: "history-link-3", from: "event-3", to: "event-4", label: "leaves", emphasis: 0.62 }
+      ]),
       callouts: labels.slice(0, 4).map((label, index) => ({
         title: label,
         body: getSentences(sourceText)[index] ?? `${label} shapes the next part of ${topic}.`,
@@ -698,19 +934,19 @@ function buildSourceDerivedBlocks(topic: string, sourceText: string, terms: stri
     {
       kind: "question",
       title: "Predict",
-      body: "Move one control. Decide what should change before looking for the answer.",
+      body: `Before moving the slider, predict how ${callouts[0]?.title ?? "the first cause"} changes ${callouts[1]?.title ?? "the next result"}.`,
       targetId: callouts[1]?.targetId,
       question: sanitizeQuestion(
         {
-          question: `When the main condition changes in ${topic}, what should you track first?`,
+          question: `In ${topic}, what is the safest first thing to track when conditions change?`,
           choices: [
-            "The relationship between the changed input and the highlighted result",
-            "Only the title of the lesson",
-            "The decorative background",
-            "Whichever label is longest"
+            `How ${callouts[0]?.title ?? "the cause"} changes ${callouts[1]?.title ?? "the result"}`,
+            "The longest label on the screen",
+            "A detail that never changes",
+            "A fact unrelated to the cause"
           ],
-          answer: "The relationship between the changed input and the highlighted result",
-          hint: "The useful move is to name what changes and why."
+          answer: `How ${callouts[0]?.title ?? "the cause"} changes ${callouts[1]?.title ?? "the result"}`,
+          hint: "A good prediction names both the thing you changed and the thing it should affect."
         },
         topic,
         terms,
@@ -720,7 +956,7 @@ function buildSourceDerivedBlocks(topic: string, sourceText: string, terms: stri
     {
       kind: "inspect",
       title: callouts[2]?.title ?? "Test one change",
-      body: callouts[2]?.body ?? sentences[1] ?? `Use the controls to test what changes inside the ${topic} model.`,
+      body: callouts[2]?.body ?? sentences[1] ?? `Change one condition and watch what ${topic} makes easier, harder, larger, smaller, earlier, or later.`,
       targetId: callouts[2]?.targetId
     },
     {
@@ -732,7 +968,7 @@ function buildSourceDerivedBlocks(topic: string, sourceText: string, terms: stri
     {
       kind: "challenge",
       title: "Use it somewhere new",
-      body: `Change one assumption in ${topic}. Predict which relationship in the model would break first.`,
+      body: `Change one assumption in ${topic}. Predict which cause-effect link would fail first, then explain why.`,
       targetId: scene.elements.at(-1)?.id
     }
   ];
@@ -804,28 +1040,28 @@ function buildSourceDerivedPractice(topic: string, terms: string[], scene: Lesso
 
   return [
     {
-      question: `What should you do before reading an explanation of ${topic}?`,
-      choices: ["Make a prediction from the model", "Memorize the title", "Ignore the controls", "Pick the longest word"],
-      answer: "Make a prediction from the model",
-      hint: "Learning by doing starts with a testable guess."
+      question: `What makes a prediction about ${topic} useful?`,
+      choices: ["It names a cause and a result", "It repeats the title", "It avoids all specifics", "It only describes a color"],
+      answer: "It names a cause and a result",
+      hint: "A prediction becomes testable when it says what changes and what should follow."
     },
     {
-      question: `What is the best use of the controls in this lesson?`,
-      choices: ["Test how a relationship changes", "Hide the sources", "Change the topic title", "Skip the model"],
-      answer: "Test how a relationship changes",
-      hint: "Controls are for varying conditions, not decorating the page."
+      question: `If you changed ${first}, what would show understanding?`,
+      choices: [`Predicting how ${second} responds`, "Listing unrelated vocabulary", "Ignoring the result", "Choosing the longest answer"],
+      answer: `Predicting how ${second} responds`,
+      hint: "Understanding is a controlled experiment: vary one thing, watch the dependent effect."
     },
     {
-      question: `Which move would show real understanding of ${topic}?`,
-      choices: [`Explain how ${first} affects ${second}`, "Memorize only the title", "Ignore the visual model", "Pick the longest answer"],
-      answer: `Explain how ${first} affects ${second}`,
-      hint: "Understanding means naming a relationship, not just a component."
+      question: `Which explanation best shows transfer for ${topic}?`,
+      choices: [`Explain how ${first} affects ${second} in a new example`, "Recite only the definition", "Say every part is equally important", "Avoid making a prediction"],
+      answer: `Explain how ${first} affects ${second} in a new example`,
+      hint: "Transfer means the same relationship works after the surface details change."
     },
     {
-      question: `If this diagram were wrong, where would the error most likely matter?`,
-      choices: ["In which elements cause, enclose, transform, or constrain others", "In the rounded corners", "In the navigation bar", "In the source link styling"],
-      answer: "In which elements cause, enclose, transform, or constrain others",
-      hint: "A learning visual earns its keep through relationships."
+      question: `What misconception would most likely break your understanding of ${topic}?`,
+      choices: ["Confusing cause and effect", "Using short labels", "Reading the source links", "Answering before scrolling"],
+      answer: "Confusing cause and effect",
+      hint: "Most hard ideas become clearer once the direction of influence is right."
     }
   ];
 }
@@ -874,13 +1110,35 @@ Return ONLY JSON with this shape:
         "width": number,
         "height": number,
         "latex": string,
-        "emphasis": number
+        "emphasis": number,
+        "bindings": [
+          {
+            "control": "exact label from scene.controls",
+            "property": "x|y|x2|y2|width|height|opacity|scale|rotate|translateX|translateY|pathScale|pointX|pointY",
+            "amount": number,
+            "pivotX": number,
+            "pivotY": number,
+            "direction": "normal|inverse"
+          }
+        ]
       }
     ],
     "callouts": [
       {"title": string, "body": "max 24 words", "targetId": "element id"}
     ]
   },
+  "activities": [
+    {
+      "kind": "observe|predict|manipulate|check|reveal|transfer",
+      "title": string,
+      "prompt": "max 26 words; tell the learner what to do now",
+      "action": "max 16 words; e.g. drag light intensity, click the boundary, compare two nodes",
+      "targetId": "element id",
+      "control": "optional exact control label",
+      "reveal": "max 30 words; feedback after the learner acts",
+      "question": {"question": string, "choices": [string,string,string,string], "answer": string, "hint": string}
+    }
+  ],
   "blocks": [
     {
       "kind": "visual|inspect|micro|question|challenge|source",
@@ -901,11 +1159,15 @@ Hard requirements:
 - Do not ask meta questions like "which visual part is explanatory?" Ask understanding questions about the concept.
 - Do not use a lesson template. Choose a different format and block order based on the concept.
 - Invent a visual grammar for this exact topic. Generic graph/network/flow is unacceptable unless the topic truly requires that exact object.
+- Invent custom bindings for this exact topic. Every important element needs bindings to controls, so sliders visibly change the correct concept. Do not rely on labels alone.
+- Use the binding grammar like a tiny simulation engine: position for moving objects/events, width/height for regions, rotate/x2/y2 for forces/arrows, pathScale/pointY for curves/paths, opacity for hidden/active states.
 - Every visual element must correspond to a real concept, step, object, boundary, force, event, or misconception from the topic.
 - Controls must have clear causal effects the renderer can animate: radius, position, zoom, intensity, time, mass, pressure, concentration, probability, etc.
+- Activities must be the primary lesson. Make 5-7 short steps with only one action per step: observe, predict, manipulate, check, reveal, transfer.
+- Each prediction/check question must test the actual concept, not whether the visual looks good.
 - For Cauchy Residue Theorem, draw a complex-plane contour with enclosed poles/residue sum/inside-vs-outside logic, not a derivative graph.
 - For derivatives, draw a curve, shrinking interval, tangent/local linearization, and limit idea.
-- Include at least 7 visual elements, 2 controls, 4 callouts, 5 blocks, and 4 practice questions.
+- Include at least 7 visual elements, 2 controls, 4 callouts, 5 activities, 5 blocks, and 4 practice questions.
 - At least 2 blocks should include prediction/checkpoint questions. Questions should test causality, misconception, visual reading, and transfer.
 - Keep prose concise and avoid paragraph walls.`;
 }

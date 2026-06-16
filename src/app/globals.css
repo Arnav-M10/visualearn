@@ -641,8 +641,8 @@ button {
 .lesson-stage-copy h1 {
   margin: 0;
   color: #fff;
-  font-size: clamp(46px, 6vw, 86px);
-  line-height: 0.96;
+  font-size: clamp(40px, 5.2vw, 72px);
+  line-height: 0.98;
   letter-spacing: -0.03em;
 }
 
@@ -1062,6 +1062,22 @@ button {
   padding-top: 34px;
 }
 
+.lesson-stage-generated .lesson-stage-copy {
+  align-content: start;
+  gap: 13px;
+  padding-top: 10px;
+}
+
+.lesson-stage-generated .lesson-stage-copy h1 {
+  font-size: clamp(36px, 4.4vw, 58px);
+  line-height: 1;
+}
+
+.lesson-stage-generated .lesson-stage-copy p:not(.result-eyebrow) {
+  font-size: 16px;
+  line-height: 1.48;
+}
+
 .format-chip-row {
   display: flex;
   flex-wrap: wrap;
@@ -1076,6 +1092,163 @@ button {
   color: #dfeeff;
   font-size: 12px;
   font-weight: 900;
+}
+
+.activity-card {
+  display: grid;
+  gap: 9px;
+  max-width: 560px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 24px;
+  padding: 12px;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(156, 199, 255, 0.18), transparent 12rem),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 64%),
+    rgba(5, 8, 14, 0.68);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(22px);
+  animation: riseIn 240ms ease both;
+}
+
+.activity-progress {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18px, 1fr));
+  gap: 6px;
+}
+
+.activity-progress button {
+  height: 5px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.13);
+  transition: background 180ms ease, transform 180ms ease;
+}
+
+.activity-progress button.active {
+  background: #f8fbff;
+  box-shadow: 0 0 24px rgba(156, 199, 255, 0.44);
+}
+
+.activity-progress button:hover {
+  transform: translateY(-1px);
+  background: rgba(156, 199, 255, 0.52);
+}
+
+.activity-kicker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #9cc7ff;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.activity-kicker span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+}
+
+.activity-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.activity-copy h2 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(23px, 2.6vw, 32px);
+  line-height: 1.04;
+}
+
+.activity-copy p {
+  margin: 0;
+  color: #d8e3f0 !important;
+  font-size: 15px !important;
+  line-height: 1.42 !important;
+}
+
+.activity-copy small {
+  display: inline-flex;
+  width: fit-content;
+  border: 1px solid rgba(156, 199, 255, 0.18);
+  border-radius: 999px;
+  padding: 8px 10px;
+  background: rgba(156, 199, 255, 0.1);
+  color: #dfeeff;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.activity-reveal {
+  display: grid;
+  gap: 5px;
+  max-height: 0;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 18px;
+  padding: 0 12px;
+  opacity: 0;
+  transition: max-height 220ms ease, padding 220ms ease, opacity 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.activity-reveal.visible {
+  max-height: 180px;
+  border-color: rgba(255, 255, 255, 0.1);
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.055);
+  opacity: 1;
+}
+
+.activity-reveal strong {
+  color: #fff;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.activity-reveal p {
+  margin: 0;
+  color: #c5d0df !important;
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+}
+
+.activity-actions {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 8px;
+}
+
+.activity-actions button {
+  min-height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.075);
+  color: #f8fbff;
+  font-weight: 950;
+  transition: transform 180ms ease, background 180ms ease, border-color 180ms ease;
+}
+
+.activity-actions button:last-child {
+  border-color: rgba(255, 255, 255, 0.9);
+  background: #f8fbff;
+  color: #030508;
+}
+
+.activity-actions button:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.activity-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .active-insight-panel {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type CSSProperties, type KeyboardEvent } from "react";
-import type { CleanLesson, LessonBlock, LessonQuestion, LessonVisualElement } from "@/lib/visualearn-lessons";
+import type { CleanLesson, LessonActivity, LessonQuestion, LessonVisualBinding, LessonVisualElement } from "@/lib/visualearn-lessons";
 
 type LessonExperienceProps = {
   lesson: CleanLesson;
@@ -11,12 +11,23 @@ export function LessonExperience({ lesson }: LessonExperienceProps) {
   const [controlValues, setControlValues] = useState(() =>
     Object.fromEntries(lesson.scene.controls.map((control) => [control.label, control.value]))
   );
-  const [activeBlockIndex, setActiveBlockIndex] = useState(0);
+  const [activeActivityIndex, setActiveActivityIndex] = useState(0);
   const [activeTargetId, setActiveTargetId] = useState<string | undefined>();
   const [selectedElementId, setSelectedElementId] = useState<string | undefined>();
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const activeBlock = lesson.blocks[activeBlockIndex] ?? lesson.blocks[0];
-  const activeId = selectedElementId ?? activeTargetId ?? activeBlock?.targetId ?? lesson.scene.callouts[0]?.targetId ?? lesson.scene.elements[0]?.id;
+  const activities = lesson.activities.length
+    ? lesson.activities
+    : lesson.blocks.map((block) => ({
+        kind: "observe" as const,
+        title: block.title,
+        prompt: block.body ?? lesson.scene.visualIntent,
+        action: "Use the model, then continue.",
+        targetId: block.targetId,
+        reveal: block.question?.hint ?? block.body ?? lesson.scene.visualIntent,
+        question: block.question
+      }));
+  const activeActivity = activities[activeActivityIndex] ?? activities[0];
+  const activeId = selectedElementId ?? activeTargetId ?? activeActivity?.targetId ?? lesson.scene.callouts[0]?.targetId ?? lesson.scene.elements[0]?.id;
   const formatLabels = Array.from(new Set([lesson.format, lesson.scene.format].filter(Boolean)));
   const intensity = useMemo(() => {
     const normalized = lesson.scene.controls.map((control) => {
@@ -58,6 +69,32 @@ export function LessonExperience({ lesson }: LessonExperienceProps) {
               <span key={label}>{label}</span>
             ))}
           </div>
+          {activeActivity ? (
+            <ActiveActivityCard
+              activity={activeActivity}
+              index={activeActivityIndex}
+              total={activities.length}
+              selected={answers[`activity-${activeActivityIndex}`]}
+              onAnswer={(value) => setAnswers((current) => ({ ...current, [`activity-${activeActivityIndex}`]: value }))}
+              onStep={(index) => {
+                setActiveActivityIndex(index);
+                setActiveTargetId(activities[index]?.targetId);
+                setSelectedElementId(undefined);
+              }}
+              onBack={() => {
+                const nextIndex = Math.max(0, activeActivityIndex - 1);
+                setActiveActivityIndex(nextIndex);
+                setActiveTargetId(activities[nextIndex]?.targetId);
+                setSelectedElementId(undefined);
+              }}
+              onNext={() => {
+                const nextIndex = Math.min(activities.length - 1, activeActivityIndex + 1);
+                setActiveActivityIndex(nextIndex);
+                setActiveTargetId(activities[nextIndex]?.targetId);
+                setSelectedElementId(undefined);
+              }}
+            />
+          ) : null}
         </div>
 
         <div className="simulation-shell generated-shell">
@@ -108,35 +145,10 @@ export function LessonExperience({ lesson }: LessonExperienceProps) {
             onActivateTarget={(targetId) => {
               setActiveTargetId(targetId);
               setSelectedElementId(targetId);
-              const nextIndex = lesson.blocks.findIndex((block) => block.targetId === targetId);
-              if (nextIndex >= 0) setActiveBlockIndex(nextIndex);
+              const nextIndex = activities.findIndex((activity) => activity.targetId === targetId);
+              if (nextIndex >= 0) setActiveActivityIndex(nextIndex);
             }}
           />
-        </div>
-      </section>
-
-      <section className="generated-learning-stream" aria-label="Generated learning sequence">
-        <div className="stream-heading">
-          <p className="result-eyebrow">Generated path</p>
-          <h2>Follow the picture first.</h2>
-        </div>
-
-        <div className="lesson-block-grid">
-          {lesson.blocks.map((block, index) => (
-            <LessonBlockCard
-              key={`${block.title}-${index}`}
-              block={block}
-              index={index}
-              active={index === activeBlockIndex}
-              selected={answers[`block-${index}`]}
-              onFocus={() => {
-                setActiveBlockIndex(index);
-                setActiveTargetId(block.targetId);
-                setSelectedElementId(block.targetId);
-              }}
-              onAnswer={(value) => setAnswers((current) => ({ ...current, [`block-${index}`]: value }))}
-            />
-          ))}
         </div>
       </section>
 
@@ -187,34 +199,66 @@ export function LessonExperience({ lesson }: LessonExperienceProps) {
   );
 }
 
-function LessonBlockCard({
-  block,
+function ActiveActivityCard({
+  activity,
   index,
-  active,
+  total,
   selected,
-  onFocus,
-  onAnswer
+  onAnswer,
+  onStep,
+  onBack,
+  onNext
 }: {
-  block: LessonBlock;
+  activity: LessonActivity;
   index: number;
-  active: boolean;
+  total: number;
   selected?: string;
-  onFocus: () => void;
   onAnswer: (value: string) => void;
+  onStep: (index: number) => void;
+  onBack: () => void;
+  onNext: () => void;
 }) {
+  const showReveal = activity.kind === "reveal" || (activity.question ? Boolean(selected) : false);
+  const canGoBack = index > 0;
+  const canGoNext = index < total - 1;
+
   return (
-    <article className={`lesson-block-card ${active ? "active" : ""}`} data-target-id={block.targetId} onMouseEnter={onFocus} onFocus={onFocus}>
-      <button type="button" className="block-focus-button" onClick={onFocus}>
-        <span>{String(index + 1).padStart(2, "0")}</span>
-        <strong>{block.kind}</strong>
-      </button>
-      <div className="block-copy">
-        <h3>{block.title}</h3>
-        {block.body ? <p>{block.body}</p> : null}
+    <article className="activity-card" data-target-id={activity.targetId}>
+      <div className="activity-progress" aria-label="Lesson progress">
+        {Array.from({ length: total }).map((_, stepIndex) => (
+          <button
+            type="button"
+            key={stepIndex}
+            className={stepIndex === index ? "active" : ""}
+            onClick={() => onStep(stepIndex)}
+            aria-label={`Go to step ${stepIndex + 1}`}
+          />
+        ))}
       </div>
-      {block.question ? (
-        <QuestionCard question={block.question} id={`block-${index}`} selected={selected} onAnswer={onAnswer} compact />
+      <div className="activity-kicker">
+        <span>{String(index + 1).padStart(2, "0")}</span>
+        <strong>{activity.kind}</strong>
+      </div>
+      <div className="activity-copy">
+        <h2>{activity.title}</h2>
+        <p>{activity.prompt}</p>
+        {activity.action ? <small>{activity.action}</small> : null}
+      </div>
+      {activity.question ? (
+        <QuestionCard question={activity.question} id={`activity-${index}`} selected={selected} onAnswer={onAnswer} compact />
       ) : null}
+      <div className={`activity-reveal ${showReveal ? "visible" : ""}`}>
+        <strong>{activity.question ? "Reveal" : "What to notice"}</strong>
+        <p>{activity.reveal}</p>
+      </div>
+      <div className="activity-actions">
+        <button type="button" onClick={onBack} disabled={!canGoBack}>
+          Back
+        </button>
+        <button type="button" onClick={onNext} disabled={!canGoNext}>
+          {canGoNext ? "Continue" : "Finish"}
+        </button>
+      </div>
     </article>
   );
 }
@@ -314,7 +358,6 @@ function GeneratedSceneCanvas({
               byId={byId}
               active={element.id === activeId}
               controlState={controlState}
-              background={lesson.scene.background}
               onSelect={onActivateTarget}
             />
           ))}
@@ -381,18 +424,16 @@ function SceneElement({
   byId,
   active,
   controlState,
-  background,
   onSelect
 }: {
   element: LessonVisualElement;
   byId: Map<string, LessonVisualElement>;
   active: boolean;
   controlState: ControlState;
-  background: CleanLesson["scene"]["background"];
   onSelect: (targetId: string) => void;
 }) {
   const className = `scene-element scene-${element.type} ${active ? "active" : ""}`;
-  const adjusted = adjustElement(element, controlState, background);
+  const adjusted = adjustElement(element, controlState);
   const x = adjusted.x ?? 50;
   const y = adjusted.y ?? 50;
   const emphasis = element.emphasis ?? 0.5;
@@ -400,7 +441,7 @@ function SceneElement({
     className,
     style: {
       opacity: adjusted.opacity,
-      transformOrigin: "50px 50px",
+      transformOrigin: adjusted.transformOrigin ?? "50px 50px",
       transform: adjusted.transform
     } as CSSProperties,
     role: "button",
@@ -546,104 +587,93 @@ function getControlState(lesson: CleanLesson, values: Record<string, number>): C
   };
 }
 
-function adjustElement(element: LessonVisualElement, controlState: ControlState, background: CleanLesson["scene"]["background"]): Partial<LessonVisualElement> & {
+function adjustElement(element: LessonVisualElement, controlState: ControlState): Partial<LessonVisualElement> & {
   opacity?: number;
   transform?: string;
+  transformOrigin?: string;
 } {
-  const primary = controlState.primary;
-  const secondary = controlState.secondary;
-  const id = element.id.toLowerCase();
-  const label = `${element.label ?? ""} ${element.detail ?? ""}`.toLowerCase();
-  const point = controlState.byLabel["point x"] ?? secondary;
-  const zoom = controlState.byLabel.zoom ?? primary;
-  const contour = controlState.byLabel["contour radius"] ?? primary;
-  const residue = controlState.byLabel["residue weight"] ?? secondary;
+  const adjusted: Partial<LessonVisualElement> & { opacity?: number; transform?: string; transformOrigin?: string } = {
+    x: element.x,
+    y: element.y,
+    x2: element.x2,
+    y2: element.y2,
+    width: element.width,
+    height: element.height,
+    points: element.points,
+    d: element.d,
+    opacity: 0.52 + (element.emphasis ?? 0.55) * 0.34
+  };
+  const transforms: string[] = [];
+  const bindings = element.bindings?.length ? element.bindings : fallbackRuntimeBindings(element);
 
-  if (background === "contour") {
-    const scale = 0.72 + contour * 0.58;
-    if (id.includes("contour") || id.includes("inside")) {
-      return {
-        opacity: 0.35 + contour * 0.58,
-        transform: `scale(${scale})`
-      };
+  bindings.forEach((binding, index) => {
+    const raw = controlState.byLabel[binding.control.toLowerCase()] ?? (index % 2 === 0 ? controlState.primary : controlState.secondary);
+    const normalized = binding.direction === "inverse" ? 1 - raw : raw;
+    const centered = (normalized - 0.5) * 2;
+    const amount = binding.amount;
+    const delta = centered * amount;
+    const pivotX = binding.pivotX ?? element.x ?? 50;
+    const pivotY = binding.pivotY ?? element.y ?? 50;
+    adjusted.transformOrigin = `${pivotX}px ${pivotY}px`;
+
+    if (binding.property === "opacity") {
+      adjusted.opacity = clamp((adjusted.opacity ?? 0.65) + delta, 0.08, 1);
+    } else if (binding.property === "scale") {
+      transforms.push(`scale(${clamp(1 + delta, 0.35, 2.2)})`);
+    } else if (binding.property === "pathScale") {
+      transforms.push(`scale(${clamp(1 + delta, 0.45, 2.1)})`);
+    } else if (binding.property === "rotate") {
+      transforms.push(`rotate(${delta}deg)`);
+    } else if (binding.property === "translateX") {
+      transforms.push(`translate(${delta}px, 0)`);
+    } else if (binding.property === "translateY") {
+      transforms.push(`translate(0, ${delta}px)`);
+    } else if (binding.property === "pointX" && adjusted.points?.length) {
+      adjusted.points = adjusted.points.map((point, pointIndex) => ({
+        ...point,
+        x: clamp(point.x + delta * ((pointIndex + 1) / adjusted.points!.length), 0, 100)
+      }));
+    } else if (binding.property === "pointY" && adjusted.points?.length) {
+      adjusted.points = adjusted.points.map((point, pointIndex) => ({
+        ...point,
+        y: clamp(point.y + delta * Math.sin((pointIndex + 1) / adjusted.points!.length * Math.PI), 0, 100)
+      }));
+    } else {
+      const key = binding.property as "x" | "y" | "x2" | "y2" | "width" | "height";
+      adjusted[key] = clamp((adjusted[key] ?? fallbackCoordinate(element, key)) + delta, 0, 100);
     }
-    if (id.includes("pole-a") || id.includes("pole-b")) {
-      return {
-        opacity: 0.42 + residue * 0.58,
-        transform: `scale(${0.88 + residue * 0.28})`
-      };
-    }
-    if (id.includes("outside")) {
-      return {
-        opacity: 0.2 + (1 - contour) * 0.45,
-        transform: `translate(${(contour - 0.5) * 8}px ${(0.5 - contour) * 5}px)`
-      };
-    }
-    if (id.includes("formula")) {
-      return { opacity: 0.35 + residue * 0.65 };
-    }
-  }
-
-  if (label.includes("tangent") || id.includes("tangent")) {
-    const x = 24 + point * 32;
-    const y = 62 - point * 30;
-    const slope = -20 - zoom * 18;
-    return {
-      x,
-      y,
-      x2: x + 34,
-      y2: y + slope,
-      opacity: 0.45 + zoom * 0.55
-    };
-  }
-
-  if (id.includes("point") || label.includes("x=a")) {
-    return {
-      x: 28 + point * 42,
-      y: 64 - point * 30,
-      opacity: 0.72 + zoom * 0.28,
-      transform: `scale(${0.9 + zoom * 0.24})`
-    };
-  }
-
-  if (id.includes("zoom") || label.includes("interval")) {
-    const size = 28 - zoom * 16;
-    return {
-      x: 34 + point * 26,
-      y: 30 + point * 12,
-      width: size,
-      height: size,
-      opacity: 0.18 + zoom * 0.42
-    };
-  }
-
-  if (element.type === "curve" && element.points) {
-    return {
-      points: element.points.map((item) => ({
-        x: item.x,
-        y: item.y + Math.sin((item.x + primary * 100) / 12) * (secondary - 0.5) * 8
-      })),
-      opacity: 0.68 + primary * 0.26
-    };
-  }
-
-  if (element.type === "vector") {
-    return {
-      opacity: 0.44 + primary * 0.5,
-      transform: `scale(${0.94 + primary * 0.14})`
-    };
-  }
-
-  if (element.type === "node" || element.type === "particle") {
-    return {
-      opacity: 0.45 + (element.emphasis ?? 0.5) * 0.3 + primary * 0.25,
-      transform: `scale(${0.92 + secondary * 0.18})`
-    };
-  }
+  });
 
   return {
-    opacity: 0.72 + primary * 0.18
+    ...adjusted,
+    transform: transforms.join(" ") || undefined
   };
+}
+
+function fallbackRuntimeBindings(element: LessonVisualElement): LessonVisualBinding[] {
+  const control = "__primary";
+  if (element.type === "curve") return [{ control, property: "pointY" as const, amount: 7, pivotX: 50, pivotY: 50 }];
+  if (element.type === "vector") return [{ control, property: "rotate" as const, amount: 14, pivotX: element.x ?? 50, pivotY: element.y ?? 50 }];
+  if (element.type === "path" || element.type === "surface") return [{ control, property: "pathScale" as const, amount: 0.14, pivotX: 50, pivotY: 50 }];
+  if (element.type === "region") return [{ control, property: "scale" as const, amount: 0.12, pivotX: element.x ?? 50, pivotY: element.y ?? 50 }];
+  return [{ control, property: "scale" as const, amount: 0.1, pivotX: element.x ?? 50, pivotY: element.y ?? 50 }];
+}
+
+function fallbackCoordinate(element: LessonVisualElement, key: "x" | "y" | "x2" | "y2" | "width" | "height") {
+  const fallback = {
+    x: 50,
+    y: 50,
+    x2: (element.x ?? 50) + 12,
+    y2: (element.y ?? 50) - 12,
+    width: 18,
+    height: 12
+  };
+
+  return fallback[key];
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function pointsToPath(points?: { x: number; y: number }[]) {
