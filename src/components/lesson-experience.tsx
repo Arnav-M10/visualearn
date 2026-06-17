@@ -218,12 +218,13 @@ function GenerationIssueExperience({ lesson }: LessonExperienceProps) {
           <p>{lesson.generationIssue}</p>
         </div>
         <div className="generation-required-panel">
-          <span>No template fallback</span>
-          <h2>Visualearn refused to serve a fake lesson.</h2>
+          <span>Free local fix</span>
+          <h2>Run Ollama locally, then refresh.</h2>
           <p>
-            The lesson engine now requires a fresh AI-generated simulator, Manim-style storyboard, concept questions, and practice set for this exact query.
+            Visualearn now tries OpenAI first, then a free local Ollama model. It only pauses when neither generator is available.
           </p>
-          <code>OPENAI_API_KEY</code>
+          <code>ollama pull llama3.2</code>
+          <code>OLLAMA_BASE_URL=http://localhost:11434</code>
         </div>
       </section>
 

@@ -655,19 +655,57 @@ async function generateWithOpenAI(topic: string, sources: LessonSource[]): Promi
   }
 }
 
+async function generateWithOllama(topic: string, sources: LessonSource[]): Promise<Partial<CleanLesson> | null> {
+  const model = process.env.OLLAMA_MODEL ?? "llama3.2";
+  const baseUrl = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
+
+  try {
+    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/generate`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        model,
+        system:
+          "You are Visualearn's local lesson authoring engine. Generate a fresh, source-grounded, Brilliant-quality interactive lesson and Manim-style visual storyboard for the user's exact query. Never use cached templates. Return JSON only.",
+        prompt: lessonPrompt(topic, sources),
+        format: "json",
+        stream: false,
+        options: {
+          temperature: 0.45
+        }
+      }),
+      cache: "no-store"
+    });
+
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as {
+      response?: string;
+    };
+
+    if (!data.response) return null;
+    return JSON.parse(data.response) as Partial<CleanLesson>;
+  } catch {
+    return null;
+  }
+}
+
 export async function composeCleanLesson(topicInput: string): Promise<CleanLesson> {
   const topic = normalizeTopic(topicInput);
   const sources = await fetchTopicSources(topic);
-  const generated = await generateWithOpenAI(topic, sources);
+  const generated = (await generateWithOpenAI(topic, sources)) ?? (await generateWithOllama(topic, sources));
 
   if (!generated) {
+    const hasCloudKey = Boolean(process.env.OPENAI_API_KEY);
     return buildGenerationIssueLesson(
       topic,
       sources,
-      process.env.OPENAI_API_KEY ? "generation-failed" : "needs-api",
-      process.env.OPENAI_API_KEY
+      hasCloudKey ? "generation-failed" : "needs-api",
+      hasCloudKey
         ? "The model call failed or returned unusable output. Visualearn refused to fall back to a fake template."
-        : "Set OPENAI_API_KEY so Visualearn can generate a new lesson, simulator, questions, and animation storyboard for this exact query."
+        : "For a free setup, install Ollama, run a local model, and keep OLLAMA_BASE_URL pointed at http://localhost:11434."
     );
   }
 
