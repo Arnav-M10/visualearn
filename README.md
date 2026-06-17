@@ -8,7 +8,7 @@ Visualearn is an AI visual learning site that turns a topic into a fresh interac
 - concept checks
 - source links for deeper reading
 
-The app intentionally avoids hardcoded lesson templates. If generation fails, it pauses instead of showing a neighboring or fake lesson.
+The app intentionally avoids hardcoded lesson templates. If hosted AI generation fails, it compiles a source-grounded interactive lesson from free public summaries instead of showing a neighboring or fake lesson.
 
 ## Free Hosted Mode
 
@@ -20,7 +20,7 @@ POLLINATIONS_MODEL=openai
 
 No user setup is required on each computer. Visitors just open the website.
 
-Free hosted AI can be slower or rate-limited. If the generator returns malformed output, refresh or try a shorter topic.
+Free hosted AI can be slower, rate-limited, or temporarily unavailable. When that happens, Visualearn automatically falls back to a source-compiled lesson using the topic and Wikipedia summaries, so the page still works for visitors.
 
 ## Optional Quality Upgrades
 
@@ -49,6 +49,7 @@ Provider order:
 1. OpenAI, if `OPENAI_API_KEY` is set
 2. Pollinations hosted free generator
 3. Ollama local fallback
+4. Source-compiled lesson fallback
 
 ## Development
 
@@ -73,7 +74,7 @@ npm.cmd run build
 
 ## Vercel
 
-Deploy the repo to Vercel normally. For completely free hosted operation, no paid API key is required. Optionally add:
+Deploy the repo to Vercel normally. For completely free hosted operation, no paid API key is required and no visitor has to install anything. Optionally add:
 
 ```env
 POLLINATIONS_MODEL=openai

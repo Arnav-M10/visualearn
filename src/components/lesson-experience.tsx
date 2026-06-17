@@ -8,7 +8,7 @@ type LessonExperienceProps = {
 };
 
 export function LessonExperience({ lesson }: LessonExperienceProps) {
-  if (lesson.confidence !== "ai-generated") {
+  if (lesson.confidence === "needs-api" || lesson.confidence === "generation-failed") {
     return <GenerationIssueExperience lesson={lesson} />;
   }
 
