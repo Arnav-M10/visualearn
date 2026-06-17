@@ -8,6 +8,14 @@ type LessonExperienceProps = {
 };
 
 export function LessonExperience({ lesson }: LessonExperienceProps) {
+  if (lesson.confidence !== "ai-generated") {
+    return <GenerationIssueExperience lesson={lesson} />;
+  }
+
+  return <GeneratedLessonExperience lesson={lesson} />;
+}
+
+function GeneratedLessonExperience({ lesson }: LessonExperienceProps) {
   const [controlValues, setControlValues] = useState(() =>
     Object.fromEntries(lesson.scene.controls.map((control) => [control.label, control.value]))
   );
@@ -149,13 +157,14 @@ export function LessonExperience({ lesson }: LessonExperienceProps) {
               if (nextIndex >= 0) setActiveActivityIndex(nextIndex);
             }}
           />
+          <StoryboardStrip lesson={lesson} activeId={activeId} onActivateTarget={setSelectedElementId} />
         </div>
       </section>
 
       <section className="practice-grid generated-practice" aria-label="Practice questions">
         <div className="practice-heading">
-          <p className="result-eyebrow">Practice loop</p>
-          <h2>Short checks. Real transfer.</h2>
+          <p className="result-eyebrow">Concept checks</p>
+          <h2>Prove the idea transfers.</h2>
         </div>
         {lesson.practice.map((question, index) => (
           <QuestionCard
@@ -195,6 +204,93 @@ export function LessonExperience({ lesson }: LessonExperienceProps) {
           </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+function GenerationIssueExperience({ lesson }: LessonExperienceProps) {
+  return (
+    <div className="lesson-experience">
+      <section className="generation-required" aria-labelledby="generation-required-title">
+        <div>
+          <p className="result-eyebrow">{lesson.subject} / generation paused</p>
+          <h1 id="generation-required-title">{lesson.topic}</h1>
+          <p>{lesson.generationIssue}</p>
+        </div>
+        <div className="generation-required-panel">
+          <span>No template fallback</span>
+          <h2>Visualearn refused to serve a fake lesson.</h2>
+          <p>
+            The lesson engine now requires a fresh AI-generated simulator, Manim-style storyboard, concept questions, and practice set for this exact query.
+          </p>
+          <code>OPENAI_API_KEY</code>
+        </div>
+      </section>
+
+      <section className="source-row" aria-label="Sources">
+        <div>
+          <p className="result-eyebrow">Grounding found</p>
+          <div className="source-list">
+            {lesson.sources.length ? (
+              lesson.sources.map((source) => (
+                <a href={source.url} key={source.url}>
+                  <strong>{source.title}</strong>
+                  <span>{source.extract}</span>
+                </a>
+              ))
+            ) : (
+              <p>No source summary was found for this query.</p>
+            )}
+          </div>
+        </div>
+        <div>
+          <p className="result-eyebrow">Removed failure modes</p>
+          <div className="follow-up-list">
+            <span>No neighboring-topic fallback.</span>
+            <span>No common-topic templates.</span>
+            <span>No questions about the model.</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function StoryboardStrip({
+  lesson,
+  activeId,
+  onActivateTarget
+}: {
+  lesson: CleanLesson;
+  activeId?: string;
+  onActivateTarget: (targetId: string) => void;
+}) {
+  if (!lesson.scene.storyboard.length) return null;
+
+  return (
+    <div className="storyboard-strip" aria-label="Manim-style animation storyboard">
+      <div className="storyboard-heading">
+        <span>Manim-style beats</span>
+        <strong>Watch the concept transform.</strong>
+      </div>
+      <div className="storyboard-steps">
+        {lesson.scene.storyboard.map((step, index) => {
+          const targetId = step.targetIds[0];
+          const active = Boolean(targetId && targetId === activeId);
+          return (
+            <button
+              type="button"
+              key={`${step.title}-${index}`}
+              className={active ? "active" : ""}
+              onClick={() => targetId && onActivateTarget(targetId)}
+            >
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <strong>{step.title}</strong>
+              <small>{step.narration}</small>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

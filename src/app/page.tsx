@@ -35,8 +35,8 @@ export default function Home() {
 
         <div className="clean-preview" aria-label="Visualearn lesson preview">
           <div className="clean-preview-top">
-            <span>Current lesson</span>
-            <strong>Black holes</strong>
+            <span>Generated lesson</span>
+            <strong>Your exact topic</strong>
           </div>
           <div className="clean-visual" aria-hidden="true">
             <span className="clean-orbit clean-orbit-a" />
@@ -58,9 +58,9 @@ export default function Home() {
         </div>
         <div className="clean-steps">
           {[
-            ["Ask", "Type any topic, from derivatives to DNA."],
-            ["See", "The app builds a visual model you can inspect."],
-            ["Practice", "Answer short prompts that adapt to your mistakes."]
+            ["Ask", "Type the exact concept or question."],
+            ["See", "The app generates a custom visual system for that idea."],
+            ["Practice", "Answer concept checks that test understanding, not the UI."]
           ].map(([title, detail], index) => (
             <article className="clean-step" key={title}>
               <span>{String(index + 1).padStart(2, "0")}</span>

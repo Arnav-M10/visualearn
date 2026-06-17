@@ -1,5 +1,3 @@
-const examples = ["derivatives", "black holes", "French Revolution", "neural networks"];
-
 export default function AppPage() {
   return (
     <main className="ask-shell">
@@ -16,7 +14,7 @@ export default function AppPage() {
         <p className="ask-eyebrow">Ask anything</p>
         <h1 id="ask-title">What do you want to understand?</h1>
         <p className="ask-subtitle">
-          Type any topic. Visualearn generates a source-backed model with controls, questions, and a visual simulation first.
+          Type any topic. Visualearn generates a fresh lesson with a custom simulator, Manim-style animation beats, and concept checks.
         </p>
 
         <form className="ask-form" action="/learn">
@@ -26,21 +24,13 @@ export default function AppPage() {
               id="topic"
               name="topic"
               type="search"
-              placeholder="Try: black holes, derivatives, DNA replication, tariffs..."
+              placeholder="Type the exact concept or question you want to understand..."
               autoComplete="off"
               autoFocus
             />
             <button type="submit">Generate</button>
           </div>
         </form>
-
-        <div className="ask-examples" aria-label="Example topics">
-          {examples.map((example) => (
-            <a href={`/learn?topic=${encodeURIComponent(example)}`} key={example}>
-              {example}
-            </a>
-          ))}
-        </div>
       </section>
     </main>
   );
