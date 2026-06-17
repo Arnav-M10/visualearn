@@ -602,6 +602,20 @@ Non-negotiable requirements:
 - Avoid paragraph walls. Most teaching should happen through visual state changes, prediction prompts, and precise feedback.`;
 }
 
+function parseLessonJson(text: string): Partial<CleanLesson> | null {
+  try {
+    return JSON.parse(text) as Partial<CleanLesson>;
+  } catch {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try {
+      return JSON.parse(match[0]) as Partial<CleanLesson>;
+    } catch {
+      return null;
+    }
+  }
+}
+
 async function generateWithOpenAI(topic: string, sources: LessonSource[]): Promise<Partial<CleanLesson> | null> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
@@ -649,7 +663,50 @@ async function generateWithOpenAI(topic: string, sources: LessonSource[]): Promi
         .find(Boolean);
 
     if (!text) return null;
-    return JSON.parse(text) as Partial<CleanLesson>;
+    return parseLessonJson(text);
+  } catch {
+    return null;
+  }
+}
+
+async function generateWithPollinations(topic: string, sources: LessonSource[]): Promise<Partial<CleanLesson> | null> {
+  const model = process.env.POLLINATIONS_MODEL ?? "openai";
+
+  try {
+    const response = await fetch("https://text.pollinations.ai/openai", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are Visualearn's free hosted lesson authoring engine. Generate a fresh, source-grounded, Brilliant-quality interactive lesson and Manim-style visual storyboard for the user's exact query. Never use cached templates. Return JSON only."
+          },
+          {
+            role: "user",
+            content: lessonPrompt(topic, sources)
+          }
+        ],
+        temperature: 0.45,
+        stream: false,
+        max_tokens: 6000
+      }),
+      cache: "no-store"
+    });
+
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+    const text = data.choices?.[0]?.message?.content;
+
+    if (!text) return null;
+    return parseLessonJson(text);
   } catch {
     return null;
   }
@@ -686,7 +743,7 @@ async function generateWithOllama(topic: string, sources: LessonSource[]): Promi
     };
 
     if (!data.response) return null;
-    return JSON.parse(data.response) as Partial<CleanLesson>;
+    return parseLessonJson(data.response);
   } catch {
     return null;
   }
@@ -695,7 +752,10 @@ async function generateWithOllama(topic: string, sources: LessonSource[]): Promi
 export async function composeCleanLesson(topicInput: string): Promise<CleanLesson> {
   const topic = normalizeTopic(topicInput);
   const sources = await fetchTopicSources(topic);
-  const generated = (await generateWithOpenAI(topic, sources)) ?? (await generateWithOllama(topic, sources));
+  const generated =
+    (await generateWithOpenAI(topic, sources)) ??
+    (await generateWithPollinations(topic, sources)) ??
+    (await generateWithOllama(topic, sources));
 
   if (!generated) {
     const hasCloudKey = Boolean(process.env.OPENAI_API_KEY);
@@ -705,7 +765,7 @@ export async function composeCleanLesson(topicInput: string): Promise<CleanLesso
       hasCloudKey ? "generation-failed" : "needs-api",
       hasCloudKey
         ? "The model call failed or returned unusable output. Visualearn refused to fall back to a fake template."
-        : "For a free setup, install Ollama, run a local model, and keep OLLAMA_BASE_URL pointed at http://localhost:11434."
+        : "The free hosted generator and local fallback both failed. Refresh, or optionally run Ollama locally for a backup."
     );
   }
 

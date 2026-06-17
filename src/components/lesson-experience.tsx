@@ -218,13 +218,13 @@ function GenerationIssueExperience({ lesson }: LessonExperienceProps) {
           <p>{lesson.generationIssue}</p>
         </div>
         <div className="generation-required-panel">
-          <span>Free local fix</span>
-          <h2>Run Ollama locally, then refresh.</h2>
+          <span>Free hosted generator</span>
+          <h2>Refresh once, then try a shorter topic.</h2>
           <p>
-            Visualearn now tries OpenAI first, then a free local Ollama model. It only pauses when neither generator is available.
+            Visualearn now tries a hosted free generator first, then optional OpenAI, then optional Ollama. It only pauses when every generator fails.
           </p>
-          <code>ollama pull llama3.2</code>
-          <code>OLLAMA_BASE_URL=http://localhost:11434</code>
+          <code>POLLINATIONS_MODEL=openai</code>
+          <code>optional: OLLAMA_MODEL=llama3.2</code>
         </div>
       </section>
 
