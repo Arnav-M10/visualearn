@@ -261,6 +261,42 @@ function extractTerms(text: string, topic: string, max = 8) {
     .slice(0, max);
 }
 
+function hashText(text: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Math.abs(hash);
+}
+
+function rotateAnswer(question: Omit<LessonQuestion, "choices" | "answer"> & { choices: string[]; answer: string }, seed: string): LessonQuestion {
+  const choices = [...question.choices];
+  const shift = hashText(`${seed}:${question.question}`) % choices.length;
+  const rotated = choices.slice(shift).concat(choices.slice(0, shift));
+
+  return {
+    ...question,
+    choices: rotated,
+    answer: question.answer
+  };
+}
+
+function question(seed: string, value: LessonQuestion): LessonQuestion {
+  return rotateAnswer(value, seed);
+}
+
+function extractPhrases(text: string, topic: string, max = 8) {
+  const phrases = [
+    ...topic.matchAll(/[A-Z]?[a-z]+(?:\s+[A-Z]?[a-z]+){1,3}/g),
+    ...text.matchAll(/[A-Z][a-z]+(?:\s+[A-Z]?[a-z]+){1,4}/g)
+  ]
+    .map((match) => compact(match[0].replace(/\s+/g, " "), 34))
+    .filter((phrase) => phrase.length > 5 && !/^(In|The|This|These|There|When|Where|Which)\b/.test(phrase));
+
+  return Array.from(new Set(phrases)).slice(0, max);
+}
+
 function requestTimeout(ms: number) {
   return AbortSignal.timeout(ms);
 }
@@ -710,43 +746,171 @@ function buildIntegralSourceScene(topic: string, sentences: string[]): LessonSce
   };
 }
 
-function buildConceptSourceScene(topic: string, sentences: string[], terms: string[]): LessonScene {
-  const labels = terms.length ? terms : topic.split(/\s+/).filter(Boolean).slice(0, 6);
-  const [main = topic, second = "cause", third = "effect", fourth = "example", fifth = "boundary", sixth = "transfer"] = labels;
-
+function buildTaylorBoundSourceScene(topic: string, sentences: string[]): LessonScene {
   return {
-    title: `${compact(topic, 34)} concept map`,
-    format: "source-compiled concept lab",
-    visualIntent: "Turn the source summary into a cause-and-effect model, then test which relationships survive changes.",
-    background: "field",
+    title: "Taylor error envelope",
+    format: "remainder-bound checkpoint lab",
+    visualIntent: "Compare a Taylor polynomial to the true curve, then tighten the Lagrange error bound by changing degree and interval width.",
+    background: "plane",
     controls: [
-      { label: "focus", min: 0, max: 100, value: 55, unit: "%", effect: "Moves attention from the core idea toward consequences." },
-      { label: "case strength", min: 0, max: 100, value: 45, unit: "%", effect: "Changes how strongly the example expresses the concept." }
+      { label: "degree n", min: 1, max: 8, value: 3, unit: "", effect: "Higher degree usually makes the polynomial track the curve longer near the center." },
+      { label: "distance from center", min: 5, max: 90, value: 42, unit: "%", effect: "Moving farther from the center makes the remainder bound larger." },
+      { label: "derivative ceiling", min: 10, max: 100, value: 55, unit: "%", effect: "A larger maximum derivative bound raises the worst-case error envelope." }
     ],
     elements: [
-      { type: "node", id: "core", label: compact(main, 28), detail: sentences[0] ?? `The central idea behind ${topic}.`, x: 46, y: 44, emphasis: 0.95 },
-      { type: "node", id: "driver", label: compact(second, 28), detail: sentences[1] ?? "One condition or mechanism that pushes the idea.", x: 23, y: 30, emphasis: 0.76, bindings: [{ control: "focus", property: "translateX", amount: 7, pivotX: 23, pivotY: 30 }] },
-      { type: "node", id: "outcome", label: compact(third, 28), detail: sentences[2] ?? "The result that follows when the mechanism acts.", x: 72, y: 36, emphasis: 0.82, bindings: [{ control: "case strength", property: "scale", amount: 0.18, pivotX: 72, pivotY: 36 }] },
-      { type: "node", id: "case", label: compact(fourth, 28), detail: sentences[3] ?? "A concrete case to test the idea.", x: 36, y: 70, emphasis: 0.72, bindings: [{ control: "case strength", property: "translateY", amount: -9, pivotX: 36, pivotY: 70 }] },
-      { type: "annotation", id: "boundary", label: compact(fifth, 28), detail: sentences[4] ?? "The limit where the idea may stop applying.", x: 76, y: 70, emphasis: 0.66, bindings: [{ control: "focus", property: "opacity", amount: 0.25, pivotX: 76, pivotY: 70 }] },
-      { type: "link", id: "driver-core", from: "driver", to: "core", label: "shapes", emphasis: 0.68, bindings: [{ control: "focus", property: "opacity", amount: 0.25, pivotX: 50, pivotY: 50 }] },
-      { type: "link", id: "core-outcome", from: "core", to: "outcome", label: "produces", emphasis: 0.82, bindings: [{ control: "case strength", property: "opacity", amount: 0.25, pivotX: 50, pivotY: 50 }] },
-      { type: "link", id: "case-core", from: "case", to: "core", label: "tests", emphasis: 0.7, bindings: [{ control: "case strength", property: "scale", amount: 0.12, pivotX: 46, pivotY: 44 }] },
-      { type: "formula", id: "transfer-rule", label: compact(sixth, 26), latex: "idea + condition \\rightarrow result", detail: "A reusable rule: identify the condition, then predict the result.", x: 48, y: 16, emphasis: 0.74 }
+      { type: "axis", id: "axes", label: "x and y axes", x: 12, y: 78, x2: 92, y2: 78, emphasis: 0.42 },
+      {
+        type: "curve",
+        id: "true-curve",
+        label: "true function",
+        detail: "The actual function being approximated near the center.",
+        points: [
+          { x: 12, y: 72 },
+          { x: 24, y: 58 },
+          { x: 38, y: 43 },
+          { x: 52, y: 36 },
+          { x: 66, y: 33 },
+          { x: 82, y: 26 }
+        ],
+        emphasis: 0.96
+      },
+      {
+        type: "curve",
+        id: "taylor-poly",
+        label: "Taylor polynomial",
+        detail: "The local polynomial approximation centered at a.",
+        points: [
+          { x: 16, y: 70 },
+          { x: 30, y: 56 },
+          { x: 44, y: 45 },
+          { x: 58, y: 38 },
+          { x: 72, y: 39 },
+          { x: 86, y: 47 }
+        ],
+        emphasis: 0.82,
+        bindings: [
+          { control: "degree n", property: "pointY", amount: -10, pivotX: 50, pivotY: 50 },
+          { control: "distance from center", property: "pointX", amount: 4, pivotX: 50, pivotY: 50 }
+        ]
+      },
+      {
+        type: "region",
+        id: "error-band",
+        label: "allowed error",
+        detail: "The bound is a ceiling on the possible remainder, not the exact error.",
+        x: 41,
+        y: 29,
+        width: 36,
+        height: 28,
+        emphasis: 0.7,
+        bindings: [
+          { control: "distance from center", property: "height", amount: 16, pivotX: 50, pivotY: 50 },
+          { control: "derivative ceiling", property: "height", amount: 13, pivotX: 50, pivotY: 50 },
+          { control: "degree n", property: "height", amount: -8, pivotX: 50, pivotY: 50 }
+        ]
+      },
+      { type: "node", id: "center-a", label: "center a", detail: "Taylor information is anchored at this point.", x: 38, y: 80, emphasis: 0.72 },
+      {
+        type: "node",
+        id: "test-x",
+        label: "test x",
+        detail: "The bound grows with distance |x-a|.",
+        x: 70,
+        y: 80,
+        emphasis: 0.84,
+        bindings: [{ control: "distance from center", property: "x", amount: 18, pivotX: 38, pivotY: 80 }]
+      },
+      {
+        type: "vector",
+        id: "distance",
+        label: "|x-a|",
+        detail: "Distance from the center is raised to the n+1 power.",
+        x: 38,
+        y: 86,
+        x2: 70,
+        y2: 86,
+        emphasis: 0.75,
+        bindings: [{ control: "distance from center", property: "x2", amount: 18, pivotX: 38, pivotY: 86 }]
+      },
+      {
+        type: "formula",
+        id: "bound-formula",
+        label: "remainder bound",
+        latex: "|R_n(x)| \\le \\frac{M}{(n+1)!}|x-a|^{n+1}",
+        detail: "M is a maximum possible (n+1)st derivative on the interval.",
+        x: 58,
+        y: 17,
+        emphasis: 0.92
+      },
+      {
+        type: "annotation",
+        id: "m-note",
+        label: "M is worst-case",
+        detail: sentences[0] ?? "The Lagrange form of the remainder gives a bound on the error after a Taylor polynomial approximation.",
+        x: 76,
+        y: 55,
+        emphasis: 0.68,
+        bindings: [{ control: "derivative ceiling", property: "translateY", amount: -7, pivotX: 76, pivotY: 55 }]
+      }
     ],
     callouts: [
-      { title: "Name the core", body: "Start by naming the central relationship.", targetId: "core" },
-      { title: "Find the driver", body: "Look for what changes the situation.", targetId: "driver" },
-      { title: "Predict outcome", body: "Say what should follow before revealing it.", targetId: "outcome" },
-      { title: "Test a case", body: "Use an example to check the rule.", targetId: "case" },
-      { title: "Watch boundaries", body: "Strong learning includes where an idea fails.", targetId: "boundary" }
+      { title: "Approximate locally", body: "The polynomial is built from information at a.", targetId: "taylor-poly" },
+      { title: "Measure distance", body: "|x-a| controls how far the estimate travels.", targetId: "distance" },
+      { title: "Bound the unknown", body: "M caps the next derivative over the interval.", targetId: "m-note" },
+      { title: "Read the envelope", body: "The band is worst-case allowed error.", targetId: "error-band" },
+      { title: "Use the formula", body: "Degree, distance, and M determine the bound.", targetId: "bound-formula" }
     ],
     storyboard: [
-      { title: "Extract the core", narration: "Collapse the source summary into one central relationship.", targetIds: ["core"], camera: { x: 46, y: 44, zoom: 1.25 } },
-      { title: "Attach a driver", narration: "Add the condition that makes the relationship move.", targetIds: ["driver", "driver-core"], camera: { x: 34, y: 35, zoom: 1.18 } },
-      { title: "Predict the result", narration: "Before reading, use the relationship to predict the outcome.", targetIds: ["core-outcome", "outcome"], camera: { x: 60, y: 38, zoom: 1.14 } },
-      { title: "Stress-test it", narration: "Change the case and see whether the same rule still works.", targetIds: ["case", "case-core"], camera: { x: 42, y: 63, zoom: 1.13 } },
-      { title: "Mark the boundary", narration: "A good model also shows when its shortcut may fail.", targetIds: ["boundary", "transfer-rule"], camera: { x: 63, y: 46, zoom: 1.05 } }
+      { title: "Anchor at a", narration: "Place the Taylor polynomial at the center where derivatives are known.", targetIds: ["center-a", "taylor-poly"], camera: { x: 42, y: 58, zoom: 1.15 } },
+      { title: "Walk to x", narration: "Move away from the center and watch distance enter the estimate.", targetIds: ["test-x", "distance"], camera: { x: 55, y: 78, zoom: 1.2 } },
+      { title: "Reveal the remainder", narration: "The gap between true curve and polynomial is the remainder.", targetIds: ["true-curve", "taylor-poly"], camera: { x: 56, y: 42, zoom: 1.18 } },
+      { title: "Wrap it in a bound", narration: "Lagrange gives a worst-case envelope around that unknown gap.", targetIds: ["error-band", "m-note"], camera: { x: 65, y: 45, zoom: 1.12 } },
+      { title: "Tune the formula", narration: "Higher degree, smaller distance, or lower M tightens the guaranteed error.", targetIds: ["bound-formula", "error-band"], camera: { x: 58, y: 25, zoom: 1.1 } }
+    ]
+  };
+}
+
+function buildProcessSourceScene(topic: string, sentences: string[], phrases: string[]): LessonScene {
+  const labels = [
+    phrases[0] ?? topic,
+    phrases[1] ?? "input",
+    phrases[2] ?? "conversion",
+    phrases[3] ?? "output",
+    phrases[4] ?? "constraint"
+  ];
+
+  return {
+    title: `${compact(topic, 34)} process studio`,
+    format: "source-compiled process checkpoints",
+    visualIntent: "Follow the concept as a sequence: input, transformation, output, and the condition that can break the pattern.",
+    background: "lab",
+    controls: [
+      { label: "input strength", min: 0, max: 100, value: 52, unit: "%", effect: "Changes how much the first stage can feed the process." },
+      { label: "limiting factor", min: 0, max: 100, value: 35, unit: "%", effect: "Adds friction so the output stops growing linearly." }
+    ],
+    elements: [
+      { type: "particle", id: "input", label: compact(labels[1], 26), detail: sentences[0] ?? `The input that starts ${topic}.`, x: 16, y: 50, emphasis: 0.8, bindings: [{ control: "input strength", property: "scale", amount: 0.35, pivotX: 16, pivotY: 50 }] },
+      { type: "vector", id: "flow-1", label: "enters", x: 22, y: 50, x2: 38, y2: 50, emphasis: 0.7, bindings: [{ control: "input strength", property: "opacity", amount: 0.25, pivotX: 30, pivotY: 50 }] },
+      { type: "surface", id: "transform", label: compact(labels[2], 28), detail: sentences[1] ?? "The stage where the input changes form.", d: "M38 35 C50 25 62 35 62 50 C62 65 50 75 38 65 Z", x: 50, y: 50, emphasis: 0.86, bindings: [{ control: "limiting factor", property: "pathScale", amount: -0.12, pivotX: 50, pivotY: 50 }] },
+      { type: "vector", id: "flow-2", label: "becomes", x: 62, y: 50, x2: 78, y2: 50, emphasis: 0.7, bindings: [{ control: "limiting factor", property: "opacity", amount: -0.28, pivotX: 70, pivotY: 50 }] },
+      { type: "node", id: "output", label: compact(labels[3], 28), detail: sentences[2] ?? "The visible result of the process.", x: 84, y: 50, emphasis: 0.82, bindings: [{ control: "input strength", property: "scale", amount: 0.16, pivotX: 84, pivotY: 50 }] },
+      { type: "region", id: "constraint", label: compact(labels[4], 28), detail: sentences[3] ?? "A condition that limits or redirects the process.", x: 41, y: 68, width: 38, height: 12, emphasis: 0.6, bindings: [{ control: "limiting factor", property: "height", amount: 16, pivotX: 60, pivotY: 74 }] },
+      { type: "formula", id: "rule", label: compact(labels[0], 28), latex: "input \\rightarrow transform \\rightarrow output", detail: "The reusable structure is the ordered change, not a memorized sentence.", x: 50, y: 18, emphasis: 0.75 },
+      { type: "annotation", id: "source-note", label: "source clue", detail: sentences[4] ?? `Use sources to decide what each stage means for ${topic}.`, x: 24, y: 78, emphasis: 0.6 }
+    ],
+    callouts: [
+      { title: "Start with input", body: "Ask what enters the process.", targetId: "input" },
+      { title: "Transform it", body: "Track what changes form or state.", targetId: "transform" },
+      { title: "Read output", body: "Predict the result before revealing.", targetId: "output" },
+      { title: "Add constraint", body: "Limits explain why output may plateau.", targetId: "constraint" },
+      { title: "Transfer rule", body: "Use the sequence on a new case.", targetId: "rule" }
+    ],
+    storyboard: [
+      { title: "Introduce input", narration: "A visible quantity enters the system.", targetIds: ["input", "flow-1"], camera: { x: 24, y: 50, zoom: 1.2 } },
+      { title: "Transform", narration: "The process changes that input into a new form.", targetIds: ["transform"], camera: { x: 50, y: 50, zoom: 1.22 } },
+      { title: "Predict output", narration: "The output should follow from the transformation.", targetIds: ["flow-2", "output"], camera: { x: 72, y: 50, zoom: 1.18 } },
+      { title: "Constrain", narration: "A limiting factor can stop simple more-input-more-output thinking.", targetIds: ["constraint"], camera: { x: 60, y: 70, zoom: 1.14 } },
+      { title: "Abstract", narration: "Now compress the process into a reusable rule.", targetIds: ["rule"], camera: { x: 50, y: 22, zoom: 1.08 } }
     ]
   };
 }
@@ -755,9 +919,14 @@ function buildSourceCompiledLesson(topic: string, sources: LessonSource[], reaso
   const text = sourceText(sources);
   const subject = inferSubject(topic, text);
   const sentences = getSentences(text);
-  const terms = extractTerms(text, topic);
+  const phrases = extractPhrases(text, topic);
   const isIntegral = /\b(integral|integrals|integration|riemann|antiderivative|area under|accumulation)\b/i.test(`${topic} ${text}`);
-  const scene = isIntegral ? buildIntegralSourceScene(topic, sentences) : buildConceptSourceScene(topic, sentences, terms);
+  const isTaylorBound = /\b(lagrange|taylor|remainder|error bound|error estimate|polynomial approximation)\b/i.test(`${topic} ${text}`);
+  const scene = isIntegral
+    ? buildIntegralSourceScene(topic, sentences)
+    : isTaylorBound
+      ? buildTaylorBoundSourceScene(topic, sentences)
+      : buildProcessSourceScene(topic, sentences, phrases);
   const firstSource = sources[0];
   const summary =
     sentences[0] ??
@@ -772,12 +941,12 @@ function buildSourceCompiledLesson(topic: string, sources: LessonSource[], reaso
           action: "Choose, then reveal.",
           targetId: "area",
           reveal: "It represents the accumulated area from the start to the chosen endpoint.",
-          question: {
+          question: question(topic, {
             question: "What is a definite integral measuring here?",
             choices: ["Total accumulated area over an interval", "Only one isolated graph height", "Only the graph's maximum height", "Where the curve crosses zero"],
             answer: "Total accumulated area over an interval",
             hint: "Look at the whole interval being collected."
-          }
+          })
         },
         {
           kind: "manipulate",
@@ -787,12 +956,12 @@ function buildSourceCompiledLesson(topic: string, sources: LessonSource[], reaso
           targetId: "right-bound",
           control: "upper bound",
           reveal: "When the endpoint moves right, the integral includes more slices of the graph.",
-          question: {
+          question: question(topic, {
             question: "Why can changing b change the value of an integral?",
             choices: ["It changes how much of the interval is included", "It changes the definition of f(x)", "It always makes the graph steeper", "It removes dx"],
             answer: "It changes how much of the interval is included",
             hint: "The endpoint controls the collection window."
-          }
+          })
         },
         {
           kind: "predict",
@@ -802,12 +971,12 @@ function buildSourceCompiledLesson(topic: string, sources: LessonSource[], reaso
           targetId: "slices",
           control: "slice count",
           reveal: "Thinner slices reduce the mismatch between rectangles and the curve.",
-          question: {
+          question: question(topic, {
             question: "What does the limiting process fix in a Riemann sum?",
             choices: ["The rectangle estimate error", "The axis labels", "The fact that area has units", "The curve's color"],
             answer: "The rectangle estimate error",
             hint: "More, thinner pieces track curved boundaries better."
-          }
+          })
         },
         {
           kind: "check",
@@ -816,12 +985,12 @@ function buildSourceCompiledLesson(topic: string, sources: LessonSource[], reaso
           action: "Inspect the formula.",
           targetId: "integral-symbol",
           reveal: "a and b mark the interval; f(x) is height; dx is a tiny width.",
-          question: {
+          question: question(topic, {
             question: "In \\int_a^b f(x) dx, what does dx suggest visually?",
             choices: ["A very small width", "A final answer", "A new endpoint", "A random constant"],
             answer: "A very small width",
             hint: "It is the thin horizontal piece each contribution uses."
-          }
+          })
         },
         {
           kind: "reveal",
@@ -830,12 +999,12 @@ function buildSourceCompiledLesson(topic: string, sources: LessonSource[], reaso
           action: "Fill the blanks.",
           targetId: "accumulation-arrow",
           reveal: "An integral turns many small contributions into one accumulated total.",
-          question: {
+          question: question(topic, {
             question: "Which sentence best summarizes integration?",
             choices: ["Add tiny contributions across an interval", "Read one isolated graph value", "List unrelated data points", "Ignore the interval"],
             answer: "Add tiny contributions across an interval",
             hint: "The arrow moves across the whole interval."
-          }
+          })
         },
         {
           kind: "transfer",
@@ -844,99 +1013,190 @@ function buildSourceCompiledLesson(topic: string, sources: LessonSource[], reaso
           action: "Predict first.",
           targetId: "area",
           reveal: "Speed times small time gives small distance; adding them gives total distance.",
-          question: {
+          question: question(topic, {
             question: "Why can area under a speed-time graph mean distance?",
             choices: ["Each tiny speed x time piece is distance", "Distance is just the highest speed", "Time disappears from the graph", "Only the first speed matters"],
             answer: "Each tiny speed x time piece is distance",
             hint: "Think units: speed multiplied by time."
-          }
+          })
         }
       ]
+    : isTaylorBound
+      ? [
+          {
+            kind: "observe",
+            title: "Spot the approximation",
+            prompt: "Which curve is the polynomial allowed to imitate near the center?",
+            action: "Answer before reveal.",
+            targetId: "taylor-poly",
+            reveal: "The Taylor polynomial imitates the true function near the center a.",
+            question: question(topic, {
+              question: "What is the Taylor polynomial trying to approximate?",
+              choices: ["The true function near a", "The axis labels", "Only the value of M", "A random interval endpoint"],
+              answer: "The true function near a",
+              hint: "Approximation starts at the center where derivative information is known."
+            })
+          },
+          {
+            kind: "predict",
+            title: "Walk away from a",
+            prompt: "Increase distance from center. Predict what happens to the worst-case error.",
+            action: "Move distance.",
+            targetId: "distance",
+            control: "distance from center",
+            reveal: "The bound grows with |x-a|^(n+1), so distance matters a lot.",
+            question: question(topic, {
+              question: "Why does distance from a affect the Lagrange bound?",
+              choices: ["The formula includes |x-a| raised to n+1", "The graph changes color", "The degree disappears", "M becomes zero"],
+              answer: "The formula includes |x-a| raised to n+1",
+              hint: "Look at the distance term in the bound."
+            })
+          },
+          {
+            kind: "manipulate",
+            title: "Raise the degree",
+            prompt: "Increase degree n. What should happen to the bound near the center?",
+            action: "Move degree n.",
+            targetId: "error-band",
+            control: "degree n",
+            reveal: "Higher degree adds more local information and divides by a larger factorial.",
+            question: question(topic, {
+              question: "What does increasing n usually do near the center?",
+              choices: ["It can tighten the approximation", "It deletes the interval", "It makes M irrelevant", "It changes a into b"],
+              answer: "It can tighten the approximation",
+              hint: "More Taylor terms usually help close to a."
+            })
+          },
+          {
+            kind: "check",
+            title: "Interpret M",
+            prompt: "Decide what M is allowed to mean.",
+            action: "Inspect derivative ceiling.",
+            targetId: "m-note",
+            control: "derivative ceiling",
+            reveal: "M is a maximum possible next-derivative size on the whole interval.",
+            question: question(topic, {
+              question: "In the Lagrange error bound, what is M?",
+              choices: ["A ceiling for the next derivative on the interval", "The exact error", "The x-coordinate of the center", "The polynomial degree"],
+              answer: "A ceiling for the next derivative on the interval",
+              hint: "It is deliberately worst-case."
+            })
+          },
+          {
+            kind: "reveal",
+            title: "Bound versus exact",
+            prompt: "Is the shaded band the exact error or a guarantee?",
+            action: "Choose carefully.",
+            targetId: "error-band",
+            reveal: "The Lagrange bound gives a guarantee; the exact error can be smaller.",
+            question: question(topic, {
+              question: "What does the Lagrange error bound tell you?",
+              choices: ["A maximum guaranteed error size", "The exact missing term every time", "The graph's maximum height", "The only possible polynomial"],
+              answer: "A maximum guaranteed error size",
+              hint: "Bound means safe ceiling, not exact measurement."
+            })
+          },
+          {
+            kind: "transfer",
+            title: "Use the guarantee",
+            prompt: "To guarantee smaller error, which lever is safest?",
+            action: "Predict first.",
+            targetId: "bound-formula",
+            reveal: "Stay closer to a, use more terms, or prove a smaller derivative ceiling M.",
+            question: question(topic, {
+              question: "Which change can reduce a Taylor error bound?",
+              choices: ["Use a smaller interval around a", "Ignore M", "Move x farther away", "Remove the factorial"],
+              answer: "Use a smaller interval around a",
+              hint: "Smaller |x-a| directly shrinks the distance term."
+            })
+          }
+        ]
     : [
         {
           kind: "observe",
-          title: "Name the core",
-          prompt: "Choose the statement that best captures the central relationship.",
+          title: "Find the input",
+          prompt: "What enters the process before anything changes?",
           action: "Pick before reveal.",
-          targetId: "core",
-          reveal: "Good understanding starts by compressing the source into one relationship.",
-          question: {
-            question: `What should you identify first when learning ${topic}?`,
-            choices: ["The central relationship", "A decorative label", "The longest sentence", "A random example"],
-            answer: "The central relationship",
-            hint: "Start with the idea that explains the rest."
-          }
+          targetId: "input",
+          reveal: "A process becomes learnable when you can name what enters it.",
+          question: question(topic, {
+            question: `In a process explanation of ${topic}, what should you identify first?`,
+            choices: ["The input or starting condition", "A random label", "The final answer only", "The longest source sentence"],
+            answer: "The input or starting condition",
+            hint: "Start where the change begins."
+          })
         },
         {
           kind: "predict",
-          title: "Find the driver",
-          prompt: "Which condition seems to push the concept forward?",
-          action: "Inspect the driver.",
-          targetId: "driver",
-          reveal: "The driver is the condition that makes the core idea matter.",
-          question: {
-            question: "What makes a concept usable in a new problem?",
-            choices: ["Knowing what condition triggers it", "Memorizing its screen position", "Ignoring examples", "Choosing the shortest word"],
-            answer: "Knowing what condition triggers it",
-            hint: "Transfer depends on recognizing when the idea applies."
-          }
+          title: "Predict the change",
+          prompt: "Before revealing, predict what transformation the middle stage performs.",
+          action: "Inspect transform.",
+          targetId: "transform",
+          reveal: "The middle stage is where the input becomes a different output.",
+          question: question(topic, {
+            question: "What makes a process explanation powerful?",
+            choices: ["It tells how the input changes", "It hides the mechanism", "It uses only labels", "It avoids predictions"],
+            answer: "It tells how the input changes",
+            hint: "The mechanism is the lesson."
+          })
         },
         {
           kind: "manipulate",
-          title: "Change the case",
-          prompt: "Move case strength and predict which outcome changes.",
-          action: "Drag case strength.",
-          targetId: "case",
-          control: "case strength",
-          reveal: "Changing the case tests whether the relationship is robust.",
-          question: {
-            question: "Why test an idea with a changed case?",
-            choices: ["To see whether the same relationship still applies", "To avoid understanding the idea", "To change the source facts", "To make the model prettier"],
-            answer: "To see whether the same relationship still applies",
-            hint: "A good concept transfers."
-          }
+          title: "Change the input",
+          prompt: "Move input strength. Predict whether output should keep rising.",
+          action: "Drag input strength.",
+          targetId: "output",
+          control: "input strength",
+          reveal: "More input can raise output until a limiting factor dominates.",
+          question: question(topic, {
+            question: "Why might more input stop producing more output?",
+            choices: ["A limiting factor can become the bottleneck", "The process stops existing", "The source becomes false", "Labels move around"],
+            answer: "A limiting factor can become the bottleneck",
+            hint: "Most real systems have constraints."
+          })
         },
         {
           kind: "check",
-          title: "Predict outcome",
-          prompt: "Use the driver-to-core link to predict the result.",
+          title: "Name the output",
+          prompt: "Use the transformation to predict the output.",
           action: "Answer, then reveal.",
-          targetId: "outcome",
-          reveal: "The result follows from the core relationship, not from visual decoration.",
-          question: {
-            question: "A strong explanation connects cause to what?",
-            choices: ["A predictable result", "A random fact", "Only a title", "A color choice"],
-            answer: "A predictable result",
+          targetId: "output",
+          reveal: "The output is what lets you check whether your mental model works.",
+          question: question(topic, {
+            question: "A strong process model should let you predict what?",
+            choices: ["A result or output", "Only the title", "A random source link", "The color of the diagram"],
+            answer: "A result or output",
             hint: "Explanations should let you anticipate consequences."
-          }
+          })
         },
         {
           kind: "reveal",
-          title: "Mark limits",
-          prompt: "Find where this shortcut might stop working.",
-          action: "Inspect boundary.",
-          targetId: "boundary",
-          reveal: "Knowing a boundary keeps the concept from becoming a vague slogan.",
-          question: {
-            question: "Why include boundaries when learning a concept?",
-            choices: ["They show when the idea may fail", "They replace the source", "They make every answer identical", "They remove the need for examples"],
-            answer: "They show when the idea may fail",
-            hint: "Precision includes limits."
-          }
+          title: "Add the constraint",
+          prompt: "Identify what limits the process.",
+          action: "Inspect constraint.",
+          targetId: "constraint",
+          control: "limiting factor",
+          reveal: "The constraint is what prevents simple one-variable thinking.",
+          question: question(topic, {
+            question: "Why include constraints in a lesson?",
+            choices: ["They show when a simple pattern can fail", "They replace examples", "They make every topic identical", "They remove the mechanism"],
+            answer: "They show when a simple pattern can fail",
+            hint: "Boundaries make knowledge usable."
+          })
         },
         {
           kind: "transfer",
           title: "Transfer",
-          prompt: "State the reusable rule in your own words.",
+          prompt: "Apply the input-transform-output pattern to a new case.",
           action: "Use the formula.",
-          targetId: "transfer-rule",
-          reveal: "Transfer means spotting the same structure inside a different surface story.",
-          question: {
+          targetId: "rule",
+          reveal: "Transfer means spotting the same sequence inside a different surface story.",
+          question: question(topic, {
             question: "What proves you understand beyond memorization?",
             choices: ["Using the idea in a new situation", "Repeating the same wording", "Pointing at the diagram", "Skipping the sources"],
             answer: "Using the idea in a new situation",
             hint: "The goal is usable knowledge."
-          }
+          })
         }
       ];
 
@@ -1171,7 +1431,7 @@ async function generateWithPollinations(topic: string, sources: LessonSource[]):
         stream: false,
         max_tokens: 6000
       }),
-      signal: requestTimeout(16000),
+      signal: requestTimeout(6500),
       cache: "no-store"
     });
 

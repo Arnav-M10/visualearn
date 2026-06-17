@@ -20,6 +20,7 @@ function GeneratedLessonExperience({ lesson }: LessonExperienceProps) {
     Object.fromEntries(lesson.scene.controls.map((control) => [control.label, control.value]))
   );
   const [activeActivityIndex, setActiveActivityIndex] = useState(0);
+  const [maxUnlockedIndex, setMaxUnlockedIndex] = useState(0);
   const [activeTargetId, setActiveTargetId] = useState<string | undefined>();
   const [selectedElementId, setSelectedElementId] = useState<string | undefined>();
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -35,6 +36,9 @@ function GeneratedLessonExperience({ lesson }: LessonExperienceProps) {
         question: block.question
       }));
   const activeActivity = activities[activeActivityIndex] ?? activities[0];
+  const activeAnswer = answers[`activity-${activeActivityIndex}`];
+  const canAdvance = !activeActivity?.question || Boolean(activeAnswer);
+  const lessonComplete = activeActivityIndex === activities.length - 1 && canAdvance;
   const activeId = selectedElementId ?? activeTargetId ?? activeActivity?.targetId ?? lesson.scene.callouts[0]?.targetId ?? lesson.scene.elements[0]?.id;
   const formatLabels = Array.from(new Set([lesson.format, lesson.scene.format].filter(Boolean)));
   const intensity = useMemo(() => {
@@ -85,6 +89,7 @@ function GeneratedLessonExperience({ lesson }: LessonExperienceProps) {
               selected={answers[`activity-${activeActivityIndex}`]}
               onAnswer={(value) => setAnswers((current) => ({ ...current, [`activity-${activeActivityIndex}`]: value }))}
               onStep={(index) => {
+                if (index > maxUnlockedIndex) return;
                 setActiveActivityIndex(index);
                 setActiveTargetId(activities[index]?.targetId);
                 setSelectedElementId(undefined);
@@ -96,11 +101,15 @@ function GeneratedLessonExperience({ lesson }: LessonExperienceProps) {
                 setSelectedElementId(undefined);
               }}
               onNext={() => {
+                if (!canAdvance) return;
                 const nextIndex = Math.min(activities.length - 1, activeActivityIndex + 1);
+                setMaxUnlockedIndex((current) => Math.max(current, nextIndex));
                 setActiveActivityIndex(nextIndex);
                 setActiveTargetId(activities[nextIndex]?.targetId);
                 setSelectedElementId(undefined);
               }}
+              canAdvance={canAdvance}
+              maxUnlockedIndex={maxUnlockedIndex}
             />
           ) : null}
         </div>
@@ -157,24 +166,32 @@ function GeneratedLessonExperience({ lesson }: LessonExperienceProps) {
               if (nextIndex >= 0) setActiveActivityIndex(nextIndex);
             }}
           />
+          <ManimBoard lesson={lesson} activeId={activeId} activeStep={activeActivityIndex} />
           <StoryboardStrip lesson={lesson} activeId={activeId} onActivateTarget={setSelectedElementId} />
         </div>
       </section>
 
-      <section className="practice-grid generated-practice" aria-label="Practice questions">
+      <section className={`practice-grid generated-practice ${lessonComplete ? "unlocked" : "locked"}`} aria-label="Practice questions">
         <div className="practice-heading">
           <p className="result-eyebrow">Concept checks</p>
-          <h2>Prove the idea transfers.</h2>
+          <h2>{lessonComplete ? "Prove the idea transfers." : "Finish the checkpoints to unlock transfer practice."}</h2>
         </div>
-        {lesson.practice.map((question, index) => (
-          <QuestionCard
-            key={`${question.question}-${index}`}
-            question={question}
-            id={`practice-${index}`}
-            selected={answers[`practice-${index}`]}
-            onAnswer={(value) => setAnswers((current) => ({ ...current, [`practice-${index}`]: value }))}
-          />
-        ))}
+        {lessonComplete ? (
+          lesson.practice.map((question, index) => (
+            <QuestionCard
+              key={`${question.question}-${index}`}
+              question={question}
+              id={`practice-${index}`}
+              selected={answers[`practice-${index}`]}
+              onAnswer={(value) => setAnswers((current) => ({ ...current, [`practice-${index}`]: value }))}
+            />
+          ))
+        ) : (
+          <div className="locked-practice-panel">
+            <strong>Checkpoint locked</strong>
+            <p>Answer each step in order. The lesson reveals practice only after the core idea has been built.</p>
+          </div>
+        )}
       </section>
 
       <section className="source-row" aria-label="Sources and next questions">
@@ -304,7 +321,9 @@ function ActiveActivityCard({
   onAnswer,
   onStep,
   onBack,
-  onNext
+  onNext,
+  canAdvance,
+  maxUnlockedIndex
 }: {
   activity: LessonActivity;
   index: number;
@@ -314,6 +333,8 @@ function ActiveActivityCard({
   onStep: (index: number) => void;
   onBack: () => void;
   onNext: () => void;
+  canAdvance: boolean;
+  maxUnlockedIndex: number;
 }) {
   const showReveal = activity.kind === "reveal" || (activity.question ? Boolean(selected) : false);
   const canGoBack = index > 0;
@@ -326,8 +347,9 @@ function ActiveActivityCard({
           <button
             type="button"
             key={stepIndex}
-            className={stepIndex === index ? "active" : ""}
+            className={`${stepIndex === index ? "active" : ""} ${stepIndex > maxUnlockedIndex ? "locked" : ""}`}
             onClick={() => onStep(stepIndex)}
+            disabled={stepIndex > maxUnlockedIndex}
             aria-label={`Go to step ${stepIndex + 1}`}
           />
         ))}
@@ -352,11 +374,41 @@ function ActiveActivityCard({
         <button type="button" onClick={onBack} disabled={!canGoBack}>
           Back
         </button>
-        <button type="button" onClick={onNext} disabled={!canGoNext}>
-          {canGoNext ? "Continue" : "Finish"}
+        <button type="button" onClick={onNext} disabled={!canGoNext || !canAdvance}>
+          {canAdvance ? (canGoNext ? "Continue" : "Finish") : "Answer to continue"}
         </button>
       </div>
     </article>
+  );
+}
+
+function ManimBoard({ lesson, activeId, activeStep }: { lesson: CleanLesson; activeId?: string; activeStep: number }) {
+  const step = lesson.scene.storyboard[activeStep] ?? lesson.scene.storyboard[0];
+  const target = lesson.scene.elements.find((element) => element.id === activeId || step?.targetIds.includes(element.id));
+  const formula = lesson.scene.elements.find((element) => element.type === "formula");
+  const title = step?.title ?? "Animate the idea";
+  const narration = step?.narration ?? lesson.scene.visualIntent;
+
+  return (
+    <div className="manim-board" aria-label="Manim-style animated explanation">
+      <div className="manim-stage">
+        <svg viewBox="0 0 100 46" role="img" aria-label={`${lesson.topic} animation beat`}>
+          <path className="manim-axis" d="M8 35 H92 M18 41 V8" />
+          <path className="manim-trace" d={target?.d ?? pointsToPath(target?.points) ?? "M12 34 C28 14 47 36 62 18 C72 8 84 16 90 10"} />
+          <circle className="manim-dot dot-a" cx="30" cy="28" r="2.2" />
+          <circle className="manim-dot dot-b" cx="68" cy="18" r="2.2" />
+          <rect className="manim-highlight" x="38" y="13" width="32" height="19" rx="4" />
+          <text x="50" y="22" textAnchor="middle" className="manim-formula">
+            {formula?.label ?? target?.label ?? lesson.scene.title}
+          </text>
+        </svg>
+      </div>
+      <div className="manim-copy">
+        <span>Animated checkpoint {String(activeStep + 1).padStart(2, "0")}</span>
+        <strong>{title}</strong>
+        <p>{narration}</p>
+      </div>
+    </div>
   );
 }
 

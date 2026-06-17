@@ -1261,6 +1261,12 @@ button {
   box-shadow: 0 0 24px rgba(156, 199, 255, 0.44);
 }
 
+.activity-progress button.locked {
+  cursor: not-allowed;
+  opacity: 0.28;
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .activity-progress button:hover {
   transform: translateY(-1px);
   background: rgba(156, 199, 255, 0.52);
@@ -1381,6 +1387,145 @@ button {
 .activity-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.manim-board {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.86fr) 1fr;
+  gap: 14px;
+  border: 1px solid rgba(156, 199, 255, 0.16);
+  border-radius: 22px;
+  padding: 12px;
+  background:
+    radial-gradient(circle at 18% 14%, rgba(156, 199, 255, 0.18), transparent 13rem),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.075), transparent 68%),
+    rgba(3, 5, 9, 0.72);
+  overflow: hidden;
+}
+
+.manim-stage {
+  min-height: 150px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    rgba(0, 0, 0, 0.28);
+  background-size: 18px 18px;
+}
+
+.manim-stage svg {
+  width: 100%;
+  height: 100%;
+  min-height: 150px;
+}
+
+.manim-axis {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 0.8;
+}
+
+.manim-trace {
+  fill: none;
+  stroke: #f8fbff;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-dasharray: 140;
+  stroke-dashoffset: 140;
+  filter: drop-shadow(0 0 12px rgba(156, 199, 255, 0.55));
+  animation: manimTrace 2200ms cubic-bezier(0.19, 1, 0.22, 1) infinite;
+}
+
+.manim-dot {
+  fill: #9cc7ff;
+  filter: drop-shadow(0 0 10px rgba(156, 199, 255, 0.7));
+  transform-origin: center;
+  animation: manimPulse 1600ms ease-in-out infinite;
+}
+
+.manim-dot.dot-b {
+  animation-delay: 420ms;
+}
+
+.manim-highlight {
+  fill: rgba(156, 199, 255, 0.12);
+  stroke: rgba(156, 199, 255, 0.55);
+  stroke-width: 0.8;
+  stroke-dasharray: 6 3;
+  animation: manimBox 1800ms ease-in-out infinite;
+}
+
+.manim-formula {
+  fill: #f8fbff;
+  font-size: 4px;
+  font-weight: 900;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 0.9px;
+}
+
+.manim-copy {
+  display: grid;
+  align-content: center;
+  gap: 7px;
+}
+
+.manim-copy span {
+  color: #9cc7ff;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.manim-copy strong {
+  color: #fff;
+  font-size: clamp(18px, 2.2vw, 26px);
+  line-height: 1.08;
+}
+
+.manim-copy p {
+  margin: 0;
+  color: #afbdce;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+@keyframes manimTrace {
+  0% {
+    stroke-dashoffset: 140;
+    opacity: 0.3;
+  }
+  38%,
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes manimPulse {
+  0%,
+  100% {
+    transform: scale(0.86);
+    opacity: 0.62;
+  }
+  45% {
+    transform: scale(1.24);
+    opacity: 1;
+  }
+}
+
+@keyframes manimBox {
+  0%,
+  100% {
+    opacity: 0.28;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 0.92;
+    transform: scale(1.02);
+  }
 }
 
 .active-insight-panel {
@@ -1793,6 +1938,43 @@ button {
 
 .generated-practice {
   padding-top: 8px;
+}
+
+.generated-practice.locked {
+  grid-template-columns: 0.8fr 1.2fr;
+  align-items: stretch;
+}
+
+.locked-practice-panel {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  min-height: 220px;
+  border: 1px solid rgba(156, 199, 255, 0.16);
+  border-radius: 24px;
+  padding: 22px;
+  background:
+    linear-gradient(135deg, rgba(156, 199, 255, 0.11), transparent 66%),
+    rgba(255, 255, 255, 0.045);
+}
+
+.locked-practice-panel strong {
+  color: #fff;
+  font-size: 22px;
+}
+
+.locked-practice-panel p {
+  max-width: 520px;
+  margin: 0;
+  color: #aebaca;
+  line-height: 1.55;
+}
+
+@media (max-width: 760px) {
+  .manim-board,
+  .generated-practice.locked {
+    grid-template-columns: 1fr;
+  }
 }
 
 .clean-landing {
